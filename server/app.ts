@@ -8,15 +8,18 @@ import { verifyAuthToken } from './middleware/auth.js';
 
 const app = express();
 
-// ── Initialize Firebase Admin ──────────────────────────────────────────────────
-if (getApps().length === 0) {
-  const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
-  if (!projectId) {
-    console.warn('\n❌ WARNING: VITE_FIREBASE_PROJECT_ID is not configured in backend environment variables. Token verification will fail.\n');
+try {
+  if (getApps().length === 0) {
+    const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
+    if (!projectId) {
+      console.warn('\n❌ WARNING: VITE_FIREBASE_PROJECT_ID is not configured in backend environment variables. Token verification will fail.\n');
+    }
+    initializeApp({
+      projectId: projectId,
+    });
   }
-  initializeApp({
-    projectId: projectId,
-  });
+} catch (err) {
+  console.error('❌ Failed to initialize Firebase Admin SDK:', err);
 }
 
 // ── Middleware ─────────────────────────────────────────────────────────────────
