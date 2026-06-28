@@ -7,8 +7,9 @@ import type {
   GenerateComplaintResponse,
 } from '@/types/agent';
 
-const SERVER_NOT_RUNNING_MSG =
-  'AI server is not running. Open a new terminal and run: npm run server';
+const SERVER_NOT_RUNNING_MSG = import.meta.env.PROD
+  ? 'AI service is unavailable on the deployed app. Check Vercel environment variables and function logs, then redeploy.'
+  : 'AI server is not running. Open a new terminal and run: npm run server';
 
 async function apiFetch<T>(endpoint: string, body: unknown): Promise<T> {
   let response: Response;
@@ -24,20 +25,18 @@ async function apiFetch<T>(endpoint: string, body: unknown): Promise<T> {
     }
   }
 
-  // Catch ECONNREFUSED / network-level failures (server not running)
+  // Catch ECONNREFUSED / network-level failures
   try {
     response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
     });
-  } catch (_networkErr) {
-    // fetch() throws a TypeError when the connection is refused
+  } catch {
     throw new Error(SERVER_NOT_RUNNING_MSG);
   }
 
-  // If the response is not JSON (e.g. Vite proxy returns HTML 502/504)
-  // it means the server wasn't reachable via the proxy either
+  // If the response is not JSON, the API route/proxy is not healthy.
   const contentType = response.headers.get('content-type') ?? '';
   if (!contentType.includes('application/json')) {
     if (!response.ok) {

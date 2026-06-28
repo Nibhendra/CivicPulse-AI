@@ -53,6 +53,7 @@ export default function IssueDetailPage() {
 
   // Server health
   const [serverReady, setServerReady] = useState<boolean | null>(null); // null = checking
+  const isProduction = import.meta.env.PROD;
 
   // UI state
   const [copiedComplaint, setCopiedComplaint] = useState(false);
@@ -64,7 +65,7 @@ export default function IssueDetailPage() {
       setIssue(fetchedIssue);
       setLoading(false);
       // If already processed and agent is idle, keep idle so Re-run button shows
-      // Do NOT auto-set to 'done' — that hides the Re-run button
+      // Do NOT auto-set to 'done' â€” that hides the Re-run button
     });
     return () => unsubscribe();
   }, [id]);
@@ -74,7 +75,7 @@ export default function IssueDetailPage() {
     checkServerHealth().then(setServerReady);
   }, []);
 
-  // ── Comments State & Logic ──────────────────────────────────────────────────
+  // â”€â”€ Comments State & Logic â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const commentsSectionRef = useRef<HTMLDivElement>(null);
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState('');
@@ -162,7 +163,7 @@ export default function IssueDetailPage() {
     }
   };
 
-  // ── Loading / Not Found ──────────────────────────────────────────────────────
+  // â”€â”€ Loading / Not Found â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -195,7 +196,7 @@ export default function IssueDetailPage() {
 
   const severityStyle = issue.aiSeverity ? severityStyles[issue.aiSeverity] ?? severityStyles.medium : null;
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   return (
     <div className="animate-fade-in">
       {/* Back button */}
@@ -212,7 +213,7 @@ export default function IssueDetailPage() {
       */}
       <div className="md:grid md:grid-cols-5 md:gap-6 lg:gap-8">
 
-        {/* ── LEFT COLUMN ───────────────────────────────────────────────────── */}
+        {/* â”€â”€ LEFT COLUMN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div className="md:col-span-3 space-y-6">
 
           {/* Image */}
@@ -241,7 +242,7 @@ export default function IssueDetailPage() {
             <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed">{issue.description}</p>
           </div>
 
-          {/* ── AI Analysis Section ─────────────────────────────────────────── */}
+          {/* â”€â”€ AI Analysis Section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <Bot className="h-5 w-5 text-indigo-500" />
@@ -253,7 +254,7 @@ export default function IssueDetailPage() {
               )}
             </div>
 
-            {/* Run button — show if not yet processed and user is owner */}
+            {/* Run button â€” show if not yet processed and user is owner */}
             {!issue.aiProcessed && agentState === 'idle' && isOwner && (
               <div className="space-y-3">
                 {/* Server not running warning */}
@@ -262,13 +263,21 @@ export default function IssueDetailPage() {
                     <CardContent className="p-4 flex items-start gap-3">
                       <AlertTriangle className="h-5 w-5 shrink-0 text-red-500 mt-0.5" />
                       <div>
-                        <p className="font-semibold text-sm text-red-800">AI Server Not Running</p>
-                        <p className="text-xs text-red-700 mt-1">
-                          The Express API server is offline. Open a <strong>new terminal</strong> in the project folder and run:
-                        </p>
-                        <code className="mt-2 block text-xs bg-red-100 border border-red-200 rounded px-2.5 py-1.5 font-mono text-red-900 select-all">
-                          npm run server
-                        </code>
+                        <p className="font-semibold text-sm text-red-800">AI Service Unavailable</p>
+                        {isProduction ? (
+                          <p className="text-xs text-red-700 mt-1">
+                            The deployed AI API is not responding. Please retry, or ask the project owner to check Vercel environment variables and redeploy.
+                          </p>
+                        ) : (
+                          <>
+                            <p className="text-xs text-red-700 mt-1">
+                              The Express API server is offline. Open a <strong>new terminal</strong> in the project folder and run:
+                            </p>
+                            <code className="mt-2 block text-xs bg-red-100 border border-red-200 rounded px-2.5 py-1.5 font-mono text-red-900 select-all">
+                              npm run server
+                            </code>
+                          </>
+                        )}
                         <button
                           className="mt-2 text-xs text-red-600 underline"
                           onClick={() => checkServerHealth().then(setServerReady)}
@@ -304,7 +313,7 @@ export default function IssueDetailPage() {
               </div>
             )}
 
-            {/* Not owner — view only note */}
+            {/* Not owner â€” view only note */}
             {!issue.aiProcessed && agentState === 'idle' && !isOwner && (
               <p className="text-sm text-muted-foreground italic">
                 AI analysis has not been run yet. Only the issue reporter can trigger it.
@@ -317,7 +326,7 @@ export default function IssueDetailPage() {
               <AgentStatus isComplete={false} error={agentState === 'error' ? agentError : null} />
             )}
 
-            {/* AI result cards — shown once aiProcessed is true */}
+            {/* AI result cards â€” shown once aiProcessed is true */}
             {issue.aiProcessed && (
               <div className="space-y-4 animate-fade-in">
 
@@ -349,7 +358,7 @@ export default function IssueDetailPage() {
                         </Badge>
                       )}
                       <p className="text-xs text-muted-foreground mt-1.5">
-                        Score: {issue.severityScore ?? '—'}/10
+                        Score: {issue.severityScore ?? 'â€”'}/10
                       </p>
                     </CardContent>
                   </Card>
@@ -359,10 +368,10 @@ export default function IssueDetailPage() {
                         <Zap className="h-3.5 w-3.5" /> Urgency
                       </p>
                       <p className="text-2xl font-bold text-primary">
-                        {issue.urgencyScore ?? '—'}<span className="text-sm text-muted-foreground font-normal">/10</span>
+                        {issue.urgencyScore ?? 'â€”'}<span className="text-sm text-muted-foreground font-normal">/10</span>
                       </p>
                       <p className="text-xs text-muted-foreground capitalize mt-0.5">
-                        Priority: {issue.priorityLevel ?? '—'}
+                        Priority: {issue.priorityLevel ?? 'â€”'}
                       </p>
                     </CardContent>
                   </Card>
@@ -377,7 +386,7 @@ export default function IssueDetailPage() {
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Recommended Department</p>
-                        <p className="font-semibold text-sm">{issue.assignedDepartment ?? '—'}</p>
+                        <p className="font-semibold text-sm">{issue.assignedDepartment ?? 'â€”'}</p>
                       </div>
                     </div>
                     {issue.suggestedNextAction && (
@@ -457,18 +466,18 @@ export default function IssueDetailPage() {
                 {/* Confidence + AI category */}
                 <p className="text-xs text-muted-foreground text-center">
                   AI Category: <span className="font-medium capitalize">{(issue.aiCategory ?? issue.category).replace(/_/g, ' ')}</span>
-                  {' · '}
-                  Confidence: <span className="font-medium">{issue.aiConfidence != null ? `${Math.round(issue.aiConfidence)}%` : '—'}</span>
+                  {' Â· '}
+                  Confidence: <span className="font-medium">{issue.aiConfidence != null ? `${Math.round(issue.aiConfidence)}%` : 'â€”'}</span>
                 </p>
 
-                {/* Re-run button — only for issue owner */}
+                {/* Re-run button â€” only for issue owner */}
                 {isOwner && (
                   <div className="pt-1">
                     {showRerunWarning ? (
                       <Card className="border-amber-200 bg-amber-50/40">
                         <CardContent className="p-4">
                           <p className="text-xs font-medium text-amber-800 mb-3">
-                            ⚠ Re-running analysis will consume Gemini API quota. The previous results will be overwritten.
+                            âš  Re-running analysis will consume Gemini API quota. The previous results will be overwritten.
                           </p>
                           <div className="flex gap-2">
                             <Button size="sm" variant="destructive" className="text-xs h-7" onClick={runAgent}>
@@ -511,7 +520,7 @@ export default function IssueDetailPage() {
                             ? new Date((entry.timestamp as any).seconds * 1000)
                             : new Date(entry.timestamp as string);
                           return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) +
-                            ' · ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+                            ' Â· ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
                         } catch { return ''; }
                       })()
                     : '';
@@ -570,7 +579,7 @@ export default function IssueDetailPage() {
                               const d = comment.createdAt.seconds
                                 ? new Date(comment.createdAt.seconds * 1000)
                                 : new Date(comment.createdAt);
-                              return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) + ' · ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+                              return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) + ' Â· ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
                             } catch { return ''; }
                           })()
                         : '';
@@ -593,7 +602,7 @@ export default function IssueDetailPage() {
           </div>
         </div>
 
-        {/* ── RIGHT COLUMN ──────────────────────────────────────────────────── */}
+        {/* â”€â”€ RIGHT COLUMN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div className="mt-6 md:col-span-2 md:mt-0 space-y-4">
 
           {/* Metadata card */}
