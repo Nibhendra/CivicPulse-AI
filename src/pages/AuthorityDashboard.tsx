@@ -254,6 +254,24 @@ function IssueRow({ issue }: IssueRowProps) {
                   </div>
                 )}
               </div>
+
+              <div className="bg-background p-2.5 rounded-lg border text-xs space-y-1">
+                <div className="flex items-center gap-1.5 font-medium text-slate-700">
+                  <MapPin className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                  <span className="truncate">{issue.address || issue.locality || 'Location recorded'}</span>
+                </div>
+                {issue.latitude && issue.longitude && (
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${issue.latitude},${issue.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] text-blue-500 hover:underline flex items-center gap-1 pl-5"
+                  >
+                    View on Google Maps (Lat: {issue.latitude.toFixed(5)}, Lng: {issue.longitude.toFixed(5)})
+                  </a>
+                )}
+              </div>
+
               {issue.publicRisk && (
                 <div className="flex items-start gap-1.5 p-2 bg-amber-50 rounded border border-amber-100 text-amber-900">
                   <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
