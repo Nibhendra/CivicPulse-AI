@@ -127,8 +127,54 @@ civicpulse-ai/
 - [ ] **Phase 6**: Gamification — Trust scores, leaderboard
 - [ ] **Phase 7**: Polish & Deploy — PWA, animations, production build
 
----
+## 🚀 Deployment (Vercel)
 
-## 📄 License
+CivicPulse AI is configured to run out-of-the-box on Vercel's free tier, utilizing Serverless Functions for the Express API.
+
+### 1. Push to GitHub
+Ensure all your code is committed and pushed to your GitHub repository:
+```bash
+git push -u origin main
+```
+
+### 2. Import to Vercel
+1. Log into [Vercel](https://vercel.com/) and click **Add New → Project**.
+2. Import your GitHub repository (`CivicPulse-AI`).
+3. Vercel will auto-detect Vite as the framework.
+
+### 3. Configure Environment Variables
+In the Vercel project settings during import, add the following environment variables (from your `.env.local` and `server/.env`):
+- `VITE_FIREBASE_API_KEY`
+- `VITE_FIREBASE_AUTH_DOMAIN`
+- `VITE_FIREBASE_PROJECT_ID`
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_APP_ID`
+- `VITE_CLOUDINARY_CLOUD_NAME`
+- `VITE_CLOUDINARY_UPLOAD_PRESET`
+- `GEMINI_API_KEY` (Your actual Google AI Studio key)
+- `GEMINI_MODEL` (e.g., `gemini-2.5-flash`)
+- `GEMINI_FALLBACK_MODEL` (e.g., `gemini-2.5-flash-lite`)
+
+*Note: Do NOT set `VITE_API_BASE_URL` on Vercel. Leaving it blank allows the app to correctly use relative `/api` paths for Serverless Functions.*
+
+### 4. Deploy
+Click **Deploy**. Vercel will run `npm run build` and provision the serverless functions via `vercel.json` and `api/index.ts`.
+
+### 5. Update Firebase Authorized Domains
+Once deployed, Vercel will give you a domain (e.g., `civicpulse-ai.vercel.app`).
+1. Go to the **Firebase Console**.
+2. Navigate to **Authentication → Settings → Authorized domains**.
+3. Add your new Vercel domain to allow Google/Email sign-ins to work in production.
+
+### ✅ Production Checklist
+- [ ] Firebase Authentication authorized domains updated
+- [ ] Cloudinary unsigned upload preset is active
+- [ ] Firestore rules deployed (`firebase deploy --only firestore:rules`)
+- [ ] Firestore indexes deployed (`firebase deploy --only firestore:indexes`)
+- [ ] Gemini API key is securely stored in Vercel env variables
+- [ ] `/api/process-issue` returns JSON when tested
+- [ ] React Router pages (e.g., `/report`, `/map`) work properly on direct reload (SPA fallback)
+
+---
 
 MIT

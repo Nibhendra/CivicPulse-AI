@@ -61,10 +61,10 @@ export function IssueCard({ issue }: IssueCardProps) {
   const imageSrc = issue.imageURLs?.find(u => u && u.trim()) || placeholder;
 
   return (
-    <Link to={`/issue/${issue.id}`} className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-2xl">
-      <Card className="overflow-hidden border-0 shadow-md transition-all hover:shadow-lg hover:-translate-y-1 bg-white group cursor-pointer animate-in fade-in slide-in-from-bottom-4">
+    <Link to={`/issue/${issue.id}`} className="block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-2xl">
+      <Card className="flex flex-col h-full overflow-hidden border-0 shadow-md transition-all hover:shadow-lg hover:-translate-y-1 bg-white group cursor-pointer animate-in fade-in slide-in-from-bottom-4">
         {/* Image */}
-        <div className="relative h-48 w-full overflow-hidden bg-muted">
+        <div className="relative h-48 w-full overflow-hidden bg-muted shrink-0">
           <img
             src={imageSrc}
             alt={issue.title}
@@ -95,8 +95,8 @@ export function IssueCard({ issue }: IssueCardProps) {
           )}
         </div>
 
-        <CardContent className="p-4 relative">
-          <div className="mb-2 flex items-center justify-between">
+        <CardContent className="p-4 relative flex flex-col grow">
+          <div className="mb-2 flex items-center justify-between shrink-0">
             <Badge
               variant="secondary"
               className={cn('text-[10px] font-semibold uppercase tracking-wider capitalize', categoryColors[category] ?? categoryColors.other)}
@@ -109,13 +109,13 @@ export function IssueCard({ issue }: IssueCardProps) {
             </div>
           </div>
 
-          <h3 className="mb-1 text-base font-bold leading-tight line-clamp-1">{issue.title || 'Untitled Issue'}</h3>
+          <h3 className="mb-1 text-base font-bold leading-tight line-clamp-1 shrink-0">{issue.title || 'Untitled Issue'}</h3>
 
-          {issue.description && (
-            <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{issue.description}</p>
-          )}
+          <p className="text-xs text-muted-foreground line-clamp-2 mb-3 grow">
+            {issue.description || 'No description provided.'}
+          </p>
 
-          <div className="mt-2 flex items-center text-sm text-muted-foreground">
+          <div className="mt-auto flex items-center text-sm text-muted-foreground shrink-0 border-t pt-3">
             <MapPin className="mr-1.5 h-4 w-4 shrink-0 text-primary/70" />
             <span className="line-clamp-1">{issue.address || issue.locality || 'Location captured'}</span>
           </div>

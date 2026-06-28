@@ -62,8 +62,8 @@ export function IssueForm() {
         title: details.title.trim(),
         description: details.description.trim(),
         category: details.category,
-        latitude: location.latitude ?? 0,
-        longitude: location.longitude ?? 0,
+        latitude: location.latitude ?? undefined,
+        longitude: location.longitude ?? undefined,
         address: location.address.trim(),
         locality: location.locality.trim(),
       });
@@ -80,8 +80,13 @@ export function IssueForm() {
 
   const isNextDisabled = () => {
     if (currentStep === 1) return false; // Photo is optional — user can skip
-    if (currentStep === 2) return !details.title.trim() || !details.category;
-    if (currentStep === 3) return !location.address.trim() && !location.latitude;
+    if (currentStep === 2) return !details.title.trim() || !details.description.trim() || !details.category;
+    if (currentStep === 3) {
+      const hasImage = !!imageUrl.trim();
+      const hasLocation = !!location.address.trim() || location.latitude !== null;
+      if (!hasImage) return !hasLocation; // If no photo, must provide address or GPS
+      return false;
+    }
     return false;
   };
 
@@ -178,7 +183,9 @@ export function IssueForm() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Description (Optional)</Label>
+              <Label htmlFor="description">
+                Description <span className="text-destructive">*</span>
+              </Label>
               <textarea
                 id="description"
                 placeholder="Add any additional details that might help..."

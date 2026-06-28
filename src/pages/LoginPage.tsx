@@ -1,5 +1,4 @@
 import { Navigate } from 'react-router-dom';
-import { Shield } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import GoogleSignIn from '@/components/auth/GoogleSignIn';
 import LoginForm from '@/components/auth/LoginForm';
@@ -27,10 +26,10 @@ export default function LoginPage() {
         {/* Branding Section */}
         <div className="mb-8 flex flex-col items-center text-center">
           {/* Shield Icon with gradient glow */}
-          <div className="relative mb-4">
+          <div className="relative mb-4 flex justify-center">
             <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 opacity-20 blur-xl" />
-            <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-indigo-500/25">
-              <Shield className="h-8 w-8 text-white" />
+            <div className="relative flex h-20 w-20 items-center justify-center shrink-0">
+              <img src="/logo.png" alt="CivicPulse AI" className="h-full w-full object-contain" />
             </div>
           </div>
 

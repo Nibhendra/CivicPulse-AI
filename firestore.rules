@@ -22,31 +22,44 @@ service cloud.firestore {
       // Update: allow if any of the following:
       allow update: if request.auth != null && (
 
-        // 1. Upvote toggle (only upvotes/upvoterIds change)
-        request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['upvotes', 'upvoterIds', 'updatedAt'])
+        // 1. Upvote toggle: any user EXCEPT reporter
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes', 'upvoterIds', 'updatedAt'])
+         && request.auth.uid != resource.data.reporterId)
 
-        // 2. Community verification actions (any auth user, toggle-able arrays)
-        || request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny([
-            'confirmations', 'confirmedBy',
-            'fakeReports', 'fakeReportedBy',
-            'resolvedReports', 'resolvedBy',
-            'duplicateReports', 'duplicateReportedBy',
-            'communityScore', 'verificationStatus',
-            'updatedAt'
-          ])
+        // 2. Community verification: any user EXCEPT reporter
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'confirmations', 'confirmedBy',
+              'fakeReports', 'fakeReportedBy',
+              'resolvedReports', 'resolvedBy',
+              'duplicateReports', 'duplicateReportedBy',
+              'communityScore', 'verificationStatus',
+              'updatedAt'
+            ])
+            && request.auth.uid != resource.data.reporterId)
 
-        // 3. Issue owner can update any field (AI results, complaint, etc.)
-        || resource.data.reporterId == request.auth.uid
+        // 3. Issue owner can update AI results/complaint, but NOT upvotes/verifications/authority status
+        || (resource.data.reporterId == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'aiCategory', 'aiSeverity', 'aiDamageDescription', 'aiConfidence',
+              'isValidCivicIssue', 'severityScore', 'urgencyScore', 'priorityLevel',
+              'assignedDepartment', 'suggestedNextAction', 'publicRisk',
+              'isDuplicate', 'duplicateOf', 'duplicateScore', 'agentLog',
+              'aiProcessed', 'aiProcessedAt', 'formalComplaint', 'complaintGeneratedAt',
+              'status', 'timeline', 'updatedAt'
+            ])
+            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['status']) || request.resource.data.status == 'under_review'))
 
-        // 4. Authority/admin status updates (demo: any authenticated user)
-        || request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny([
-            'status', 'authorityStatus', 'authorityNote',
-            'lastStatusUpdatedAt', 'lastStatusUpdatedBy',
-            'timeline', 'resolvedAt', 'updatedAt'
-          ])
+        // 4. Authority/admin status updates (restricted to admin/authority email list)
+        || (request.auth.token.email in [
+              'admin@gmail.com',
+              'admin@civicpulse.org',
+              'authority@civicpulse.org'
+            ]
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'status', 'authorityStatus', 'authorityNote', 'assignedDepartment',
+                'lastStatusUpdatedAt', 'lastStatusUpdatedBy',
+                'timeline', 'resolvedAt', 'updatedAt'
+              ]))
       );
 
       allow delete: if false;

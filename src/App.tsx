@@ -1,7 +1,8 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { AuthProvider } from '@/hooks/useAuth';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import AppShell from '@/components/layout/AppShell';
+import AuthorityShell from '@/components/layout/AuthorityShell';
 import LoginPage from '@/pages/LoginPage';
 import HomePage from '@/pages/HomePage';
 import ReportIssuePage from '@/pages/ReportIssuePage';
@@ -12,6 +13,43 @@ import ProfilePage from '@/pages/ProfilePage';
 import NotFoundPage from '@/pages/NotFoundPage';
 import IssueDetailPage from '@/pages/IssueDetailPage';
 import AuthorityDashboard from '@/pages/AuthorityDashboard';
+import { isAuthorityUser } from '@/lib/roles';
+
+function AuthorityRoute() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (!isAuthorityUser(user)) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <Outlet />;
+}
+
+function CitizenRoute() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (isAuthorityUser(user)) {
+    return <Navigate to="/authority" replace />;
+  }
+
+  return <Outlet />;
+}
 
 export default function App() {
   return (
@@ -21,17 +59,25 @@ export default function App() {
           {/* Public route */}
           <Route path="/login" element={<LoginPage />} />
 
-          {/* Protected routes with app shell layout */}
+          {/* Protected routes with app shell layout (Citizen) */}
           <Route element={<ProtectedRoute />}>
-            <Route element={<AppShell />}>
-              <Route index element={<HomePage />} />
-              <Route path="/report" element={<ReportIssuePage />} />
-              <Route path="/map" element={<MapPage />} />
-              <Route path="/my-issues" element={<MyIssuesPage />} />
-              <Route path="/leaderboard" element={<LeaderboardPage />} />
-              <Route path="/profile" element={<ProfilePage />} />
-              <Route path="/issue/:id" element={<IssueDetailPage />} />
-              <Route path="/authority" element={<AuthorityDashboard />} />
+            <Route element={<CitizenRoute />}>
+              <Route element={<AppShell />}>
+                <Route index element={<HomePage />} />
+                <Route path="/report" element={<ReportIssuePage />} />
+                <Route path="/map" element={<MapPage />} />
+                <Route path="/my-issues" element={<MyIssuesPage />} />
+                <Route path="/leaderboard" element={<LeaderboardPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/issue/:id" element={<IssueDetailPage />} />
+              </Route>
+            </Route>
+            
+            {/* Authority Gated Route (Admin Shell) */}
+            <Route element={<AuthorityRoute />}>
+              <Route element={<AuthorityShell />}>
+                <Route path="/authority" element={<AuthorityDashboard />} />
+              </Route>
             </Route>
           </Route>
 

@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, MapPin, Calendar, User, ThumbsUp, MessageSquare, Tag,
   Bot, RefreshCw, Copy, Check, AlertTriangle, Building2, Zap,
   Shield, ChevronDown, ChevronUp,
 } from 'lucide-react';
-import { subscribeToIssue, toggleUpvote, updateIssueAIResults } from '@/lib/issues';
+import { subscribeToIssue, toggleUpvote, updateIssueAIResults, getRecentIssuesForDuplicateCheck, subscribeToComments, addComment } from '@/lib/issues';
 import { processIssue, checkServerHealth } from '@/lib/api';
 import type { Issue } from '@/types/issue';
 import { Button } from '@/components/ui/button';
@@ -74,6 +74,38 @@ export default function IssueDetailPage() {
     checkServerHealth().then(setServerReady);
   }, []);
 
+  // ── Comments State & Logic ──────────────────────────────────────────────────
+  const commentsSectionRef = useRef<HTMLDivElement>(null);
+  const [comments, setComments] = useState<any[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
+
+  useEffect(() => {
+    if (!id) return;
+    const unsubscribe = subscribeToComments(id, (fetchedComments) => {
+      setComments(fetchedComments);
+    });
+    return () => unsubscribe();
+  }, [id]);
+
+  const handleAddComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || !newComment.trim() || submittingComment) return;
+    setSubmittingComment(true);
+    try {
+      await addComment(id, newComment);
+      setNewComment('');
+    } catch (err) {
+      console.error('Failed to add comment:', err);
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
+  const scrollToComments = () => {
+    commentsSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   const handleUpvote = async () => {
     if (!id) return;
     try { await toggleUpvote(id); }
@@ -88,6 +120,8 @@ export default function IssueDetailPage() {
     setShowRerunWarning(false);
 
     try {
+      const nearbyIssues = await getRecentIssuesForDuplicateCheck(issue.category, id);
+
       const result = await processIssue({
         issueId: id,
         imageURL: issue.imageURLs?.[0] ?? '',
@@ -98,7 +132,7 @@ export default function IssueDetailPage() {
         longitude: issue.longitude,
         address: issue.address,
         locality: issue.locality,
-        nearbyIssues: [], // Could pass nearby issues from Firestore query if needed
+        nearbyIssues,
       });
 
       if (!result.success) {
@@ -500,6 +534,63 @@ export default function IssueDetailPage() {
               </div>
             </div>
           )}
+
+          {/* Comments section */}
+          <div ref={commentsSectionRef} className="pt-2">
+            <Card className="border shadow-sm">
+              <CardContent className="p-5 space-y-4">
+                <h3 className="font-semibold text-lg flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5 text-primary" />
+                  Comments ({comments.length})
+                </h3>
+
+                {/* Comment input form */}
+                <form onSubmit={handleAddComment} className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Add a comment..."
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    className="flex-1 rounded-xl border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    disabled={submittingComment}
+                    maxLength={500}
+                  />
+                  <Button type="submit" disabled={!newComment.trim() || submittingComment} size="sm">
+                    {submittingComment ? 'Sending...' : 'Send'}
+                  </Button>
+                </form>
+
+                {/* Comments list */}
+                <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                  {comments.length > 0 ? (
+                    [...comments].reverse().map((comment) => {
+                      const time = comment.createdAt
+                        ? (() => {
+                            try {
+                              const d = comment.createdAt.seconds
+                                ? new Date(comment.createdAt.seconds * 1000)
+                                : new Date(comment.createdAt);
+                              return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) + ' · ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+                            } catch { return ''; }
+                          })()
+                        : '';
+                      return (
+                        <div key={comment.id} className="bg-muted/30 rounded-xl p-3 text-sm flex flex-col gap-1 border border-slate-100">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-xs text-slate-800">{comment.userName}</span>
+                            <span className="text-[10px] text-muted-foreground">{time}</span>
+                          </div>
+                          <p className="text-xs text-slate-600 whitespace-pre-wrap">{comment.text}</p>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="text-center text-xs text-muted-foreground py-6">No comments yet. Start the conversation!</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* ── RIGHT COLUMN ──────────────────────────────────────────────────── */}
@@ -569,7 +660,23 @@ export default function IssueDetailPage() {
 
           {/* Community Verification */}
           {user && (
-            <CommunityVerification issue={issue} userId={user.uid} />
+            isOwner ? (
+              <Card className="border shadow-sm bg-indigo-50/50 border-indigo-100">
+                <CardContent className="p-4 flex items-start gap-3">
+                  <div className="mt-0.5 rounded-full bg-indigo-100 p-1.5 shrink-0">
+                    <Shield className="h-4 w-4 text-indigo-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-sm text-indigo-900">Your Report</h4>
+                    <p className="text-xs text-indigo-700/80 mt-0.5 leading-relaxed">
+                      You reported this issue. Other citizens can verify and confirm it to boost its priority.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <CommunityVerification issue={issue} userId={user.uid} />
+            )
           )}
 
           {/* Actions card */}
@@ -580,13 +687,14 @@ export default function IssueDetailPage() {
                 variant={hasUpvoted ? 'default' : 'outline'}
                 className="w-full gap-2"
                 onClick={handleUpvote}
+                disabled={isOwner}
               >
                 <ThumbsUp className={`h-4 w-4 ${hasUpvoted ? 'fill-current' : ''}`} />
-                {issue.upvotes || 0} {issue.upvotes === 1 ? 'Upvote' : 'Upvotes'}
+                {isOwner ? 'Own issue' : `${issue.upvotes || 0} ${issue.upvotes === 1 ? 'Upvote' : 'Upvotes'}`}
               </Button>
-              <Button variant="outline" className="w-full gap-2">
+              <Button variant="outline" className="w-full gap-2" onClick={scrollToComments}>
                 <MessageSquare className="h-4 w-4" />
-                {issue.commentCount || 0} Comments
+                {comments.length} {comments.length === 1 ? 'Comment' : 'Comments'}
               </Button>
             </CardContent>
           </Card>

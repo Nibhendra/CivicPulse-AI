@@ -5,9 +5,7 @@ import {
   PlusCircle,
   ClipboardList,
   User,
-  Shield,
   Trophy,
-  LayoutDashboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -26,9 +24,7 @@ const navItems: SidebarNavItem[] = [
   { to: "/my-issues", icon: ClipboardList, label: "My Issues" },
   { to: "/leaderboard", icon: Trophy, label: "Leaderboard" },
   { to: "/profile", icon: User, label: "Profile" },
-  { to: "/authority", icon: LayoutDashboard, label: "Authority Dashboard", dividerBefore: true },
 ];
-
 
 export default function DesktopSidebar() {
   const { user } = useAuth();
@@ -47,8 +43,8 @@ export default function DesktopSidebar() {
     <aside className="hidden lg:flex fixed left-0 top-0 bottom-0 z-50 w-64 flex-col border-r bg-background/95 backdrop-blur-lg">
       {/* Brand */}
       <div className="flex h-16 items-center gap-3 px-5 border-b shrink-0">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 shadow-md shadow-indigo-500/20">
-          <Shield className="h-5 w-5 text-white" strokeWidth={2.5} />
+        <div className="flex h-9 w-9 items-center justify-center shrink-0">
+          <img src="/logo.png" alt="CivicPulse AI" className="h-full w-full object-contain" />
         </div>
         <span className="bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-lg font-bold tracking-tight text-transparent">
           CivicPulse AI

@@ -4,8 +4,8 @@ export interface ProcessIssueBody {
   title: string;
   description: string;
   category: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   address: string;
   locality: string;
   nearbyIssues?: NearbyIssue[];
@@ -16,8 +16,8 @@ export interface NearbyIssue {
   category: string;
   status: string;
   createdAt: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface GenerateComplaintBody {
@@ -56,11 +56,11 @@ export function validateProcessIssueBody(body: unknown): string | null {
   if (typeof b.category !== 'string' || b.category.trim() === '') {
     return 'category is required and must be a non-empty string';
   }
-  if (typeof b.latitude !== 'number' || isNaN(b.latitude)) {
-    return 'latitude must be a valid number';
+  if (b.latitude !== null && typeof b.latitude !== 'number') {
+    return 'latitude must be a number or null';
   }
-  if (typeof b.longitude !== 'number' || isNaN(b.longitude)) {
-    return 'longitude must be a valid number';
+  if (b.longitude !== null && typeof b.longitude !== 'number') {
+    return 'longitude must be a number or null';
   }
   if (typeof b.address !== 'string') {
     return 'address must be a string';

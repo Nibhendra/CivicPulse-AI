@@ -42,8 +42,8 @@ export async function runCivicRescueAgent(body: ProcessIssueBody): Promise<Agent
     title: body.title,
     description: body.description,
     category: body.category,
-    latitude: body.latitude,
-    longitude: body.longitude,
+    latitude: body.latitude ?? 0,
+    longitude: body.longitude ?? 0,
     address: body.address,
     locality: body.locality,
   });
@@ -97,8 +97,8 @@ export async function runCivicRescueAgent(body: ProcessIssueBody): Promise<Agent
     category: analysis.aiCategory,
     address: body.address,
     locality: body.locality,
-    latitude: body.latitude,
-    longitude: body.longitude,
+    latitude: body.latitude ?? 0,
+    longitude: body.longitude ?? 0,
     department: finalDepartment,
   });
   log.push('✓ Formal complaint ready');

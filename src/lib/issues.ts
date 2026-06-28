@@ -513,6 +513,74 @@ export async function updateIssueStatus(
 }
 
 /**
+ * Update case details (status, department, note) from the Authority Dashboard.
+ * Constructs a professional timeline entry combining all changes.
+ */
+export async function updateAuthorityCase(
+  issueId: string,
+  payload: {
+    status: IssueStatus;
+    assignedDepartment: string;
+    note: string;
+    updatedByName: string;
+  }
+): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('You must be logged in');
+
+  const issueRef = doc(db, ISSUES_COLLECTION, issueId);
+  const issueSnap = await getDoc(issueRef);
+  if (!issueSnap.exists()) throw new Error('Issue not found');
+
+  const existing = issueSnap.data() as Partial<Issue>;
+  const nextDepartment = payload.assignedDepartment || null;
+  const currentDepartment = existing.assignedDepartment || null;
+  const statusChanged = payload.status !== existing.status;
+  const departmentChanged = nextDepartment !== currentDepartment;
+  const note = payload.note.trim();
+
+  const timelineParts: string[] = [];
+  if (departmentChanged) {
+    timelineParts.push(nextDepartment
+      ? `Assigned to ${nextDepartment}.`
+      : 'Department assignment cleared.');
+  }
+  if (statusChanged) {
+    timelineParts.push(`Status updated to ${payload.status.replace(/_/g, ' ')}.`);
+  }
+  if (note) {
+    timelineParts.push(`Department note: ${note}`);
+  }
+
+  const combinedNote = timelineParts.join(' ') || 'Authority reviewed this case.';
+
+  const timelineEntry: TimelineEntry = {
+    id: crypto.randomUUID(),
+    status: payload.status,
+    timestamp: new Date().toISOString(),
+    note: combinedNote,
+    updatedBy: payload.updatedByName || user.email || user.uid,
+  };
+
+  const updatePayload: Record<string, unknown> = {
+    status: payload.status,
+    authorityStatus: payload.status,
+    assignedDepartment: nextDepartment,
+    authorityNote: note || null,
+    lastStatusUpdatedAt: serverTimestamp(),
+    lastStatusUpdatedBy: payload.updatedByName || user.email || user.uid,
+    timeline: arrayUnion(timelineEntry),
+    updatedAt: serverTimestamp(),
+  };
+
+  if (payload.status === 'resolved' || payload.status === 'closed') {
+    updatePayload.resolvedAt = serverTimestamp();
+  }
+
+  await updateDoc(issueRef, updatePayload);
+}
+
+/**
  * Add a standalone timeline entry (e.g. authority note without status change).
  */
 export async function addTimelineEntry(
@@ -523,6 +591,84 @@ export async function addTimelineEntry(
   const fullEntry: TimelineEntry = { id: crypto.randomUUID(), ...entry };
   await updateDoc(issueRef, {
     timeline: arrayUnion(fullEntry),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** Fetch recent issues in the same category for AI duplicate detection. */
+export async function getRecentIssuesForDuplicateCheck(
+  category: string,
+  currentIssueId: string
+): Promise<any[]> {
+  const q = query(
+    collection(db, ISSUES_COLLECTION),
+    where('category', '==', category),
+    limit(40)
+  );
+  try {
+    const snapshot = await getDocs(q);
+    return snapshot.docs
+      .map((doc) => {
+        const data = doc.data();
+        const createdAtIso = data.createdAt?.toDate
+          ? data.createdAt.toDate().toISOString()
+          : data.createdAt?.seconds
+            ? new Date(data.createdAt.seconds * 1000).toISOString()
+            : new Date().toISOString();
+
+        return {
+          id: doc.id,
+          category: data.category || 'other',
+          status: data.status || 'submitted',
+          createdAt: createdAtIso,
+          latitude: data.latitude ?? 0,
+          longitude: data.longitude ?? 0,
+        };
+      })
+      .filter((issue) => issue.id !== currentIssueId);
+  } catch (err) {
+    console.error('Error fetching issues for duplicate check:', err);
+    return [];
+  }
+}
+
+/** Subscribe to comments for a specific issue. */
+export function subscribeToComments(
+  issueId: string,
+  callback: (comments: any[]) => void
+) {
+  const q = query(
+    collection(db, ISSUES_COLLECTION, issueId, 'comments'),
+    orderBy('createdAt', 'asc')
+  );
+  return onSnapshot(q, (snapshot) => {
+    const comments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    callback(comments);
+  }, (error) => {
+    console.error('Error subscribing to comments:', error);
+  });
+}
+
+/** Add a comment to an issue. */
+export async function addComment(issueId: string, text: string): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('You must be logged in to comment');
+
+  const commentData = {
+    text: text.trim(),
+    userId: user.uid,
+    userName: user.displayName || 'Anonymous Citizen',
+    userPhotoURL: user.photoURL || null,
+    createdAt: serverTimestamp(),
+  };
+
+  const commentsCol = collection(db, ISSUES_COLLECTION, issueId, 'comments');
+  await addDoc(commentsCol, commentData);
+
+  // Increment commentCount in the main issue doc
+  const issueRef = doc(db, ISSUES_COLLECTION, issueId);
+  await updateDoc(issueRef, {
+    commentCount: increment(1),
     updatedAt: serverTimestamp(),
   });
 }

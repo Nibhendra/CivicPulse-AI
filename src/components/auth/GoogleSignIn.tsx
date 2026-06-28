@@ -29,31 +29,42 @@ function GoogleIcon() {
 export default function GoogleSignIn() {
   const { signInWithGoogle } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleClick = async () => {
     try {
       setLoading(true);
+      setError(null);
       await signInWithGoogle();
-    } catch (error) {
-      console.error('Google sign-in failed:', error);
+    } catch (err) {
+      console.error('Google sign-in failed:', err);
+      setError(err instanceof Error ? err.message : 'Google sign-in failed. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Button
-      variant="outline"
-      onClick={handleClick}
-      disabled={loading}
-      className="h-12 w-full rounded-lg border-border/50 bg-background/50 text-base font-medium backdrop-blur-sm transition-all hover:border-border hover:bg-accent/50"
-    >
-      {loading ? (
-        <Loader2 className="h-5 w-5 animate-spin" />
-      ) : (
-        <GoogleIcon />
+    <div className="space-y-3 w-full">
+      <Button
+        variant="outline"
+        onClick={handleClick}
+        disabled={loading}
+        className="h-12 w-full rounded-lg border-border/50 bg-background/50 text-base font-medium backdrop-blur-sm transition-all hover:border-border hover:bg-accent/50"
+      >
+        {loading ? (
+          <Loader2 className="h-5 w-5 animate-spin" />
+        ) : (
+          <GoogleIcon />
+        )}
+        <span>{loading ? 'Signing in...' : 'Continue with Google'}</span>
+      </Button>
+
+      {error && (
+        <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-center">
+          <p className="text-xs font-medium text-destructive">{error}</p>
+        </div>
       )}
-      <span>{loading ? 'Signing in...' : 'Continue with Google'}</span>
-    </Button>
+    </div>
   );
 }

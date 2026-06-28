@@ -15,11 +15,11 @@ const DUPLICATE_WINDOW_DAYS = 14;
  */
 export function detectDuplicate(
   category: string,
-  latitude: number,
-  longitude: number,
+  latitude: number | null,
+  longitude: number | null,
   nearbyIssues: NearbyIssue[] = []
 ): DuplicateResult {
-  if (nearbyIssues.length === 0) {
+  if (latitude === null || longitude === null || nearbyIssues.length === 0) {
     return { isDuplicate: false, duplicateOf: null, duplicateScore: 0 };
   }
 
@@ -32,6 +32,9 @@ export function detectDuplicate(
   for (const issue of nearbyIssues) {
     // Skip resolved/closed issues
     if (issue.status === 'resolved' || issue.status === 'closed') continue;
+
+    // Skip if nearby issue has no coordinates
+    if (issue.latitude === null || issue.longitude === null) continue;
 
     // Check time window
     const createdTime = new Date(issue.createdAt).getTime();

@@ -1,14 +1,29 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, FileText, CheckCircle, ThumbsUp, LogOut, Settings } from 'lucide-react';
+import { Shield, FileText, CheckCircle, ThumbsUp, LogOut, Settings, Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
+import { subscribeToUserIssues } from '@/lib/issues';
+import type { Issue } from '@/types/issue';
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+
+  const [userIssues, setUserIssues] = useState<Issue[]>([]);
+  const [loadingIssues, setLoadingIssues] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    const unsubscribe = subscribeToUserIssues(user.uid, (issues) => {
+      setUserIssues(issues);
+      setLoadingIssues(false);
+    });
+    return () => unsubscribe();
+  }, [user]);
 
   const initials = user?.displayName
     ?.split(' ')
@@ -21,10 +36,19 @@ export default function ProfilePage() {
     navigate('/login');
   };
 
+  const totalReported = userIssues.length;
+  const totalResolved = userIssues.filter(i => i.status === 'resolved').length;
+  const totalUpvotes = userIssues.reduce((sum, i) => sum + (i.upvotes ?? 0), 0);
+  const totalConfirmations = userIssues.reduce((sum, i) => sum + (i.confirmations ?? 0), 0);
+  const totalFakes = userIssues.reduce((sum, i) => sum + (i.fakeReports ?? 0), 0);
+
+  // Dynamic Trust Score logic
+  const trustScore = Math.max(10, Math.min(100, 50 + (totalConfirmations * 3) + (totalResolved * 10) - (totalFakes * 15)));
+
   const stats = [
-    { label: 'Reported', value: 0, icon: FileText, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
-    { label: 'Resolved', value: 0, icon: CheckCircle, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-    { label: 'Upvotes', value: 0, icon: ThumbsUp, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+    { label: 'Reported', value: totalReported, icon: FileText, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
+    { label: 'Resolved', value: totalResolved, icon: CheckCircle, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+    { label: 'Upvotes', value: totalUpvotes, icon: ThumbsUp, color: 'text-amber-500', bg: 'bg-amber-500/10' },
   ];
 
   return (
@@ -68,12 +92,16 @@ export default function ProfilePage() {
                   <Shield className="h-5 w-5 text-primary" />
                   <span className="font-semibold">Trust Score</span>
                 </div>
-                <span className="text-2xl font-bold text-primary">50</span>
+                {loadingIssues ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                ) : (
+                  <span className="text-2xl font-bold text-primary">{trustScore}</span>
+                )}
               </div>
               <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-500"
-                  style={{ width: '50%' }}
+                  style={{ width: `${loadingIssues ? 50 : trustScore}%` }}
                 />
               </div>
               <p className="mt-2 text-xs text-muted-foreground">

@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { Activity, CheckCircle2, Shield, Camera, Inbox, ArrowRight, Clock, Bot, Users } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent } from '@/components/ui/card';
@@ -7,9 +7,15 @@ import { Button } from '@/components/ui/button';
 import { IssueCard } from '@/components/ui/IssueCard';
 import type { Issue } from '@/types/issue';
 import { subscribeToRecentIssues } from '@/lib/issues';
+import { isAuthorityUser } from '@/lib/roles';
 
 export default function HomePage() {
   const { user } = useAuth();
+  
+  if (isAuthorityUser(user)) {
+    return <Navigate to="/authority" replace />;
+  }
+
   const firstName = user?.displayName?.split(' ')[0] || 'Citizen';
   const [recentIssues, setRecentIssues] = useState<Issue[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -44,7 +50,7 @@ export default function HomePage() {
 
   const stats = [
     {
-      label: 'Total Issues',
+      label: 'Recent Issues',
       value: metrics.total.toString(),
       icon: Activity,
       gradient: 'from-blue-500 to-cyan-500',
@@ -122,7 +128,7 @@ export default function HomePage() {
         {impactStats.map((s) => {
           const Icon = s.icon;
           return (
-            <Card key={s.label} className="border-0 shadow-sm">
+            <Card key={s.label} className="relative overflow-hidden border-0 shadow-md">
               <CardContent className="p-3 md:p-4 flex items-center gap-3">
                 <div className={`inline-flex rounded-lg p-2 shrink-0 ${s.bg}`}>
                   <Icon className={`h-4 w-4 ${s.color}`} />

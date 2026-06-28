@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '@/constants/config';
+import { auth } from './firebase';
 import type {
   ProcessIssueRequest,
   ProcessIssueResponse,
@@ -12,11 +13,22 @@ const SERVER_NOT_RUNNING_MSG =
 async function apiFetch<T>(endpoint: string, body: unknown): Promise<T> {
   let response: Response;
 
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const user = auth.currentUser;
+  if (user) {
+    try {
+      const idToken = await user.getIdToken();
+      headers['Authorization'] = `Bearer ${idToken}`;
+    } catch (err) {
+      console.error('Failed to retrieve auth token:', err);
+    }
+  }
+
   // Catch ECONNREFUSED / network-level failures (server not running)
   try {
     response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(body),
     });
   } catch (_networkErr) {

@@ -1,11 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Shield, Filter, ArrowUpDown, ChevronDown, ChevronUp,
   CheckCircle2, Clock, AlertTriangle, Loader2, Building2,
-  MapPin, Star, Save, RotateCcw,
+  MapPin, Star, Save, RotateCcw, Search,
 } from 'lucide-react';
-import { subscribeToAllIssues, updateIssueStatus } from '@/lib/issues';
+import { subscribeToAllIssues, updateAuthorityCase } from '@/lib/issues';
 import { useAuth } from '@/hooks/useAuth';
 import type { Issue, IssueStatus, IssueCategory } from '@/types/issue';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,13 +12,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// Types
 
 type SortKey = 'urgencyScore' | 'createdAt' | 'communityScore';
 type SortDir = 'asc' | 'desc';
 
 const STATUS_FLOW: IssueStatus[] = [
-  'submitted', 'under_review', 'assigned', 'in_progress', 'resolved', 'reopened',
+  'submitted', 'under_review', 'assigned', 'in_progress', 'resolved', 'closed', 'rejected', 'reopened'
 ];
 
 const STATUS_LABELS: Record<string, string> = {
@@ -56,7 +55,63 @@ const ALL_CATEGORIES: IssueCategory[] = [
   'streetlight', 'broken_road', 'public_infra', 'other',
 ];
 
-// ── Issue Row Component ───────────────────────────────────────────────────────
+const DEPARTMENTS = [
+  'Roads & Infrastructure',
+  'Sanitation & Waste',
+  'Water Supply',
+  'Drainage',
+  'Street Lighting',
+  'Public Works',
+  'Parks & Public Spaces',
+  'Other / General Administration'
+];
+
+function toIssueDate(value: unknown): Date | null {
+  if (!value) return null;
+  try {
+    if (typeof value === 'object' && value !== null && 'seconds' in value) {
+      const seconds = Number((value as { seconds: unknown }).seconds);
+      if (!Number.isNaN(seconds)) return new Date(seconds * 1000);
+    }
+    const date = value instanceof Date ? value : new Date(value as string | number);
+    return Number.isNaN(date.getTime()) ? null : date;
+  } catch {
+    return null;
+  }
+}
+
+function formatTimelineDate(timestamp: unknown): string {
+  const date = toIssueDate(timestamp);
+  return date ? date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'recently';
+}
+
+function safeText(value: unknown, fallback = ''): string {
+  return typeof value === 'string' && value.trim() ? value : fallback;
+}
+
+function formatVerificationStatus(status: Issue['verificationStatus'] | undefined | null): string {
+  return (status || 'unverified').replace(/_/g, ' ');
+}
+
+// Helpers
+
+function isOverdue(issue: Issue) {
+  if (issue.status === 'resolved' || issue.status === 'closed' || issue.status === 'rejected') return false;
+  if (!issue.createdAt) return false;
+  const createdDate = toIssueDate(issue.createdAt);
+  if (!createdDate) return false;
+
+  const diffHours = (Date.now() - createdDate.getTime()) / (1000 * 60 * 60);
+  return diffHours > 24;
+}
+
+function needsAttention(issue: Issue) {
+  if (issue.status === 'resolved' || issue.status === 'closed' || issue.status === 'rejected') return false;
+  if (issue.aiSeverity === 'critical' || issue.aiSeverity === 'high') return true;
+  return isOverdue(issue);
+}
+
+// Issue Row Component
 
 interface IssueRowProps {
   issue: Issue;
@@ -65,24 +120,31 @@ interface IssueRowProps {
 
 function IssueRow({ issue }: IssueRowProps) {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
   const [newStatus, setNewStatus] = useState<IssueStatus>(issue.status);
+  const [department, setDepartment] = useState<string>(issue.assignedDepartment || '');
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
 
+  const hasChanges = newStatus !== issue.status || department !== (issue.assignedDepartment || '') || note.trim().length > 0;
+
   const handleSave = async () => {
-    if (!user) return;
+    if (!user || !hasChanges) return;
     setSaving(true);
     try {
-      await updateIssueStatus(issue.id, newStatus, note, user.displayName || user.email || 'Authority');
-      setSavedMsg('✓ Updated');
+      await updateAuthorityCase(issue.id, {
+        status: newStatus,
+        assignedDepartment: department,
+        note: note.trim(),
+        updatedByName: user.displayName || user.email || 'Authority'
+      });
+      setSavedMsg('Updated');
       setNote('');
       setTimeout(() => setSavedMsg(''), 2000);
     } catch (err) {
       console.error(err);
-      setSavedMsg('✗ Failed');
+      setSavedMsg('Failed');
     } finally {
       setSaving(false);
     }
@@ -102,8 +164,11 @@ function IssueRow({ issue }: IssueRowProps) {
       })()
     : 'recently';
 
+  const isAttention = needsAttention(issue);
+  const isOver = isOverdue(issue);
+
   return (
-    <div className="border rounded-xl overflow-hidden transition-shadow hover:shadow-md">
+    <div className={cn("border rounded-xl overflow-hidden transition-shadow hover:shadow-md", isAttention ? "border-amber-200" : "")}>
       {/* Summary row */}
       <div
         className="flex items-center gap-3 p-4 cursor-pointer bg-card hover:bg-muted/30 transition-colors"
@@ -113,7 +178,7 @@ function IssueRow({ issue }: IssueRowProps) {
         {issue.imageURLs?.[0] ? (
           <img
             src={issue.imageURLs[0]}
-            alt={issue.title}
+            alt={safeText(issue.title, 'Issue photo')}
             className="h-12 w-16 rounded-lg object-cover shrink-0 hidden sm:block"
           />
         ) : (
@@ -121,8 +186,8 @@ function IssueRow({ issue }: IssueRowProps) {
         )}
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-start gap-2 flex-wrap">
-            <p className="font-semibold text-sm truncate max-w-xs">{issue.title}</p>
+          <div className="flex items-start gap-2 flex-wrap mb-1">
+            <p className="font-semibold text-sm truncate max-w-xs">{safeText(issue.title, 'Untitled case')}</p>
             <Badge className={cn('text-[10px] border shrink-0', STATUS_COLORS[issue.status] ?? STATUS_COLORS.submitted)}>
               {STATUS_LABELS[issue.status] ?? issue.status}
             </Badge>
@@ -131,32 +196,30 @@ function IssueRow({ issue }: IssueRowProps) {
                 {issue.aiSeverity}
               </Badge>
             )}
+            {isAttention && (
+              <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[10px] shrink-0">
+                Needs Attention
+              </Badge>
+            )}
+            {!issue.aiProcessed && (
+              <Badge variant="outline" className="text-[10px] shrink-0 text-muted-foreground">
+                Unprocessed
+              </Badge>
+            )}
+            {isOver && (
+              <Badge className="bg-red-50 text-red-700 border-red-200 text-[10px] shrink-0">
+                Older than 24h
+              </Badge>
+            )}
           </div>
-          <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+          <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
             <span className="flex items-center gap-1">
               <MapPin className="h-3 w-3" />
-              {issue.locality || issue.address || '—'}
+              {issue.locality || issue.address || '-'}
             </span>
             <span className="capitalize">{issue.category?.replace(/_/g, ' ')}</span>
             <span>{createdAgo}</span>
-          </div>
-        </div>
-
-        {/* Scores */}
-        <div className="hidden md:flex items-center gap-4 shrink-0 text-center">
-          <div>
-            <p className="text-xs text-muted-foreground">Urgency</p>
-            <p className="font-bold text-sm">{issue.urgencyScore ?? '—'}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Trust</p>
-            <p className={cn('font-bold text-sm', (issue.communityScore ?? 0) < 0 ? 'text-destructive' : '')}>
-              {(issue.communityScore ?? 0) > 0 ? '+' : ''}{issue.communityScore ?? 0}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Confirms</p>
-            <p className="font-bold text-sm">{issue.confirmations ?? 0}</p>
+            <span className="truncate max-w-[120px]">Reporter: {issue.reporterName || 'Citizen'}</span>
           </div>
         </div>
 
@@ -169,95 +232,158 @@ function IssueRow({ issue }: IssueRowProps) {
       {/* Expanded panel */}
       {expanded && (
         <div className="border-t p-4 space-y-4 bg-muted/10 animate-fade-in">
-          {/* Description & AI info */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-1">Description</p>
-              <p className="text-sm leading-relaxed">{issue.description}</p>
+          {/* Detailed case info */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              {/* Show image on mobile in expanded view */}
+              <div className="sm:hidden mb-3">
+                {issue.imageURLs?.[0] ? (
+                  <img src={issue.imageURLs[0]} alt={safeText(issue.title, 'Issue photo')} className="w-full h-40 object-cover rounded-lg border shadow-sm" />
+                ) : (
+                  <div className="w-full h-40 bg-muted rounded-lg border flex items-center justify-center text-muted-foreground text-xs shadow-sm">No Image</div>
+                )}
+              </div>
+              
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wide">Case Details</p>
+                <p className="text-sm leading-relaxed mb-2">{safeText(issue.description, 'No description provided.')}</p>
+                {issue.formalComplaint && (
+                  <div className="mt-2 p-2 bg-background border rounded-lg">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">Formal Draft Available</p>
+                    <p className="text-xs text-muted-foreground line-clamp-2 italic">"{issue.formalComplaint}"</p>
+                  </div>
+                )}
+              </div>
               {issue.publicRisk && (
-                <div className="mt-2 flex items-start gap-1.5">
-                  <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
-                  <p className="text-xs text-muted-foreground">{issue.publicRisk}</p>
+                <div className="flex items-start gap-1.5 p-2 bg-amber-50 rounded border border-amber-100 text-amber-900">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <p className="text-xs">{issue.publicRisk}</p>
                 </div>
               )}
             </div>
-            <div className="space-y-2">
-              {issue.assignedDepartment && (
-                <div className="flex items-center gap-2 text-xs">
-                  <Building2 className="h-3.5 w-3.5 text-indigo-500" />
-                  <span className="text-muted-foreground">Dept:</span>
-                  <span className="font-medium">{issue.assignedDepartment}</span>
+            
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wide">AI Analysis & Community</p>
+                {issue.suggestedNextAction && (
+                  <div className="flex items-start gap-2 text-xs mb-2 bg-background p-2 rounded border">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                    <span className="text-slate-700"><span className="font-semibold block mb-0.5">Suggested Action:</span>{issue.suggestedNextAction}</span>
+                  </div>
+                )}
+                <div className="flex flex-col gap-1 text-xs text-slate-600 bg-background p-2 rounded border">
+                  <div className="flex items-center gap-2">
+                    <Star className="h-3.5 w-3.5 text-indigo-400" />
+                    <span>Verification: <span className="font-semibold uppercase">{formatVerificationStatus(issue.verificationStatus)}</span></span>
+                  </div>
+                  <span className="ml-5 text-[10px]">Confirms: {issue.confirmations ?? 0} | Fake Reports: {issue.fakeReports ?? 0} | Score: {issue.communityScore ?? 0}</span>
                 </div>
-              )}
-              {issue.suggestedNextAction && (
-                <div className="flex items-start gap-2 text-xs">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                  <span>{issue.suggestedNextAction}</span>
-                </div>
-              )}
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Star className="h-3.5 w-3.5" />
-                <span>Confirmations: {issue.confirmations ?? 0} · Fake: {issue.fakeReports ?? 0}</span>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs h-7 mt-1"
-                onClick={() => navigate(`/issue/${issue.id}`)}
-              >
-                View Full Issue
-              </Button>
+
+              {issue.timeline && issue.timeline.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">Recent Timeline</p>
+                  <div className="text-xs space-y-1.5 max-h-24 overflow-y-auto">
+                    {issue.timeline.slice(-3).reverse().map((entry, idx) => (
+                      <div key={idx} className="flex gap-2">
+                        <span className="text-muted-foreground shrink-0 w-12 border-r">
+                          {formatTimelineDate(entry.timestamp)}
+                        </span>
+                        <span className="text-slate-700 line-clamp-1">{safeText(entry.note, 'Case updated')}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Status update */}
-          <div className="border-t pt-4">
-            <p className="text-xs font-semibold mb-3 uppercase tracking-wide text-muted-foreground">
-              Update Status
+          {/* Department & Status update */}
+          <div className="border-t pt-4 bg-background p-4 rounded-xl shadow-sm">
+            <p className="text-xs font-semibold mb-4 uppercase tracking-wide text-indigo-700">
+              Department Action Workflow
             </p>
-            <div className="flex flex-wrap gap-2 mb-3">
-              {STATUS_FLOW.map(s => (
-                <button
-                  key={s}
-                  onClick={() => setNewStatus(s)}
-                  className={cn(
-                    'px-3 py-1.5 rounded-lg text-xs font-medium border transition-all',
-                    newStatus === s
-                      ? (STATUS_COLORS[s] ?? 'bg-primary/10 border-primary text-primary') + ' ring-2 ring-primary/30'
-                      : 'border-border text-muted-foreground hover:bg-muted'
-                  )}
-                >
-                  {STATUS_LABELS[s]}
-                </button>
-              ))}
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              {/* Department Select */}
+              <div>
+                <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Current / Assigned Department</label>
+                <div className="relative">
+                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <select 
+                    className="w-full pl-9 rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    value={department}
+                    onChange={(e) => setDepartment(e.target.value)}
+                  >
+                    <option value="">-- Select Department --</option>
+                    {DEPARTMENTS.map(d => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
+                {!department && issue.assignedDepartment && (
+                  <p className="text-[10px] text-indigo-600 mt-1 flex items-center gap-1">
+                    <Star className="h-3 w-3" /> AI Suggested: {issue.assignedDepartment}
+                  </p>
+                )}
+              </div>
+
+              {/* Action Note */}
+              <div>
+                <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Action Taken / Department Note</label>
+                <textarea
+                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  rows={2}
+                  placeholder="e.g. Inspection team dispatched."
+                  value={note}
+                  onChange={e => setNote(e.target.value)}
+                />
+              </div>
             </div>
 
-            <textarea
-              className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
-              rows={2}
-              placeholder="Add authority note (optional)…"
-              value={note}
-              onChange={e => setNote(e.target.value)}
-            />
+            {/* Status Buttons */}
+            <div className="mb-4">
+              <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-2">Official Status</label>
+              <div className="flex flex-wrap gap-2">
+                {STATUS_FLOW.map(s => (
+                  <button
+                    key={s}
+                    onClick={() => setNewStatus(s)}
+                    className={cn(
+                      'px-3 py-1.5 rounded-lg text-xs font-medium border transition-all',
+                      newStatus === s
+                        ? (STATUS_COLORS[s] ?? 'bg-primary/10 border-primary text-primary') + ' ring-2 ring-primary/30 shadow-sm'
+                        : 'border-border text-muted-foreground hover:bg-muted'
+                    )}
+                  >
+                    {STATUS_LABELS[s]}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-            <div className="flex items-center gap-3 mt-2">
+            <div className="flex items-center gap-3 pt-2 border-t">
               <Button
                 size="sm"
-                className="gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-sm"
+                className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
                 onClick={handleSave}
-                disabled={saving || newStatus === issue.status}
+                disabled={saving || !hasChanges}
               >
                 {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                {saving ? 'Saving…' : 'Update Status'}
+                {saving ? 'Saving...' : 'Publish Update'}
               </Button>
               <button
                 className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-                onClick={() => { setNewStatus(issue.status); setNote(''); }}
+                onClick={() => { 
+                  setNewStatus(issue.status); 
+                  setDepartment(issue.assignedDepartment || ''); 
+                  setNote(''); 
+                }}
               >
-                <RotateCcw className="h-3 w-3" /> Reset
+                <RotateCcw className="h-3 w-3" /> Reset Changes
               </button>
               {savedMsg && (
-                <span className={cn('text-xs font-medium', savedMsg.startsWith('✓') ? 'text-emerald-600' : 'text-destructive')}>
+                <span className={cn('text-xs font-medium ml-auto', savedMsg === 'Updated' ? 'text-emerald-600' : 'text-destructive')}>
                   {savedMsg}
                 </span>
               )}
@@ -269,22 +395,28 @@ function IssueRow({ issue }: IssueRowProps) {
   );
 }
 
-// ── Authority Dashboard Page ──────────────────────────────────────────────────
+// Authority Dashboard Page
 
 export default function AuthorityDashboard() {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Filters & Search
+  const [searchQuery, setSearchQuery] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('createdAt');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [filterSeverity, setFilterSeverity] = useState<string>('all');
+  const [filterDept, setFilterDept] = useState<string>('all');
+  const [filterAi, setFilterAi] = useState<string>('all');
+  const [filterVerif, setFilterVerif] = useState<string>('all');
 
   useEffect(() => {
     const unsub = subscribeToAllIssues((fetched) => {
       setIssues(fetched);
       setLoading(false);
-    }, 200);
+    }, 500); // larger limit for admin
     return () => unsub();
   }, []);
 
@@ -299,10 +431,40 @@ export default function AuthorityDashboard() {
 
   const filtered = useMemo(() => {
     let result = [...issues];
+
+    // Search
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(i => {
+        const searchableText = [
+          i.title,
+          i.description,
+          i.address,
+          i.locality,
+          i.reporterName,
+          i.assignedDepartment,
+        ].map(value => safeText(value).toLowerCase()).join(' ');
+        return searchableText.includes(q);
+      });
+    }
+
+    // Filters
     if (filterStatus !== 'all') result = result.filter(i => i.status === filterStatus);
     if (filterCategory !== 'all') result = result.filter(i => i.category === filterCategory);
     if (filterSeverity !== 'all') result = result.filter(i => i.aiSeverity === filterSeverity);
+    if (filterDept !== 'all') {
+      if (filterDept === 'unassigned') result = result.filter(i => !i.assignedDepartment);
+      else result = result.filter(i => i.assignedDepartment === filterDept);
+    }
+    if (filterAi !== 'all') {
+      const isProcessed = filterAi === 'processed';
+      result = result.filter(i => !!i.aiProcessed === isProcessed);
+    }
+    if (filterVerif !== 'all') {
+      result = result.filter(i => i.verificationStatus === filterVerif);
+    }
 
+    // Sort
     result.sort((a, b) => {
       let aVal: number;
       let bVal: number;
@@ -320,22 +482,23 @@ export default function AuthorityDashboard() {
       return sortDir === 'desc' ? bVal - aVal : aVal - bVal;
     });
     return result;
-  }, [issues, filterStatus, filterCategory, filterSeverity, sortKey, sortDir]);
+  }, [issues, searchQuery, filterStatus, filterCategory, filterSeverity, filterDept, filterAi, filterVerif, sortKey, sortDir]);
 
   // Summary stats
   const total = issues.length;
-  const resolved = issues.filter(i => i.status === 'resolved').length;
-  const critical = issues.filter(i => i.aiSeverity === 'critical' || i.aiSeverity === 'high').length;
-  const verified = issues.filter(i => i.verificationStatus === 'community_verified').length;
-  const aiAnalyzed = issues.filter(i => i.aiProcessed).length;
+  const resolved = issues.filter(i => i.status === 'resolved' || i.status === 'closed').length;
+  const assigned = issues.filter(i => i.status === 'assigned').length;
+  const inProgress = issues.filter(i => i.status === 'in_progress').length;
+  const newCases = issues.filter(i => i.status === 'submitted' || i.status === 'under_review').length;
+  const attentionNeeded = issues.filter(needsAttention).length;
 
   const summaryStats = [
-    { label: 'Total Issues', value: total, icon: Filter, color: 'text-blue-600', bg: 'bg-blue-500/10' },
-    { label: 'AI Analyzed', value: aiAnalyzed, icon: Shield, color: 'text-indigo-600', bg: 'bg-indigo-500/10' },
-    { label: 'Verified', value: verified, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
-    { label: 'Resolved', value: resolved, icon: CheckCircle2, color: 'text-teal-600', bg: 'bg-teal-500/10' },
-    { label: 'High Priority', value: critical, icon: AlertTriangle, color: 'text-red-500', bg: 'bg-red-500/10' },
-    { label: 'Pending', value: total - resolved, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-500/10' },
+    { label: 'Total Cases', value: total, icon: Filter, color: 'text-blue-600', bg: 'bg-blue-500/10' },
+    { label: 'New / Under Review', value: newCases, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-500/10' },
+    { label: 'Needs Attention', value: attentionNeeded, icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-500/10', glow: attentionNeeded > 0 },
+    { label: 'Assigned', value: assigned, icon: Building2, color: 'text-cyan-600', bg: 'bg-cyan-500/10' },
+    { label: 'In Progress', value: inProgress, icon: Shield, color: 'text-indigo-600', bg: 'bg-indigo-500/10' },
+    { label: 'Resolved / Closed', value: resolved, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
   ];
 
   function SortButton({ label, k }: { label: string; k: SortKey }) {
@@ -344,7 +507,7 @@ export default function AuthorityDashboard() {
       <button
         onClick={() => toggleSort(k)}
         className={cn(
-          'flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors',
+          'flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-medium border transition-colors',
           active
             ? 'bg-primary/10 border-primary/30 text-primary'
             : 'border-border text-muted-foreground hover:bg-muted'
@@ -352,7 +515,7 @@ export default function AuthorityDashboard() {
       >
         <ArrowUpDown className="h-3 w-3" />
         {label}
-        {active && <span className="text-[10px]">{sortDir === 'desc' ? '↓' : '↑'}</span>}
+        {active && <span className="text-[10px]">{sortDir === 'desc' ? 'desc' : 'asc'}</span>}
       </button>
     );
   }
@@ -363,50 +526,73 @@ export default function AuthorityDashboard() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-md shadow-indigo-500/20">
-              <Shield className="h-5 w-5 text-white" />
+            <div className="flex h-10 w-10 items-center justify-center shrink-0">
+              <img src="/logo.png" alt="CivicPulse AI" className="h-full w-full object-contain" />
             </div>
-            <h1 className="text-2xl font-bold md:text-3xl">Authority Dashboard</h1>
+            <h1 className="text-2xl font-bold md:text-3xl tracking-tight text-slate-800">Civic Operations Console</h1>
           </div>
           <p className="text-sm text-muted-foreground ml-[52px]">
-            Demo authority panel · Review, filter, and update civic issue statuses
+            Review, prioritize, and manage departmental assignments for civic cases.
           </p>
         </div>
-        <Badge variant="outline" className="shrink-0 border-amber-300 text-amber-700 bg-amber-50 text-[10px] px-2 py-1">
-          DEMO MODE
-        </Badge>
       </div>
 
       {/* Summary stats */}
-      <div className="grid grid-cols-3 gap-3 md:grid-cols-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {summaryStats.map(s => {
           const Icon = s.icon;
           return (
-            <Card key={s.label} className="border-0 shadow-md">
+            <Card key={s.label} className={cn("border-0 shadow-sm", s.glow ? "ring-2 ring-red-400 ring-offset-1" : "")}>
               <CardContent className="p-3 md:p-4">
                 <div className={cn('mb-2 inline-flex rounded-lg p-2', s.bg)}>
                   <Icon className={cn('h-4 w-4', s.color)} />
                 </div>
                 <p className="text-2xl font-bold">{s.value}</p>
-                <p className="text-[10px] text-muted-foreground leading-tight">{s.label}</p>
+                <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide leading-tight">{s.label}</p>
               </CardContent>
             </Card>
           );
         })}
       </div>
 
-      {/* Filter + Sort bar */}
+      {/* Filter + Search bar */}
       <Card className="border shadow-sm">
-        <CardContent className="p-4 space-y-3">
+        <CardContent className="p-4 space-y-4">
+          
+          {/* Top Row: Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input 
+              type="text"
+              placeholder="Search by title, location, reporter, or department..."
+              className="w-full pl-9 rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+            />
+          </div>
+
           <div className="flex items-center gap-2 flex-wrap">
             <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
-            <span className="text-sm font-medium">Filters</span>
+            <span className="text-xs font-semibold text-muted-foreground uppercase">Filters</span>
 
-            {/* Status filter */}
+            {/* Department */}
+            <select
+              value={filterDept}
+              onChange={e => setFilterDept(e.target.value)}
+              className="rounded-lg border bg-background px-2 py-1.5 text-[11px] font-medium focus:outline-none focus:ring-2 focus:ring-primary/30"
+            >
+              <option value="all">All Departments</option>
+              <option value="unassigned">Unassigned</option>
+              {DEPARTMENTS.map(d => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+
+            {/* Status */}
             <select
               value={filterStatus}
               onChange={e => setFilterStatus(e.target.value)}
-              className="rounded-lg border bg-background px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
+              className="rounded-lg border bg-background px-2 py-1.5 text-[11px] font-medium focus:outline-none focus:ring-2 focus:ring-primary/30"
             >
               <option value="all">All Statuses</option>
               {Object.entries(STATUS_LABELS).map(([v, l]) => (
@@ -414,11 +600,11 @@ export default function AuthorityDashboard() {
               ))}
             </select>
 
-            {/* Category filter */}
+            {/* Category */}
             <select
               value={filterCategory}
               onChange={e => setFilterCategory(e.target.value)}
-              className="rounded-lg border bg-background px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
+              className="rounded-lg border bg-background px-2 py-1.5 text-[11px] font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 hidden sm:block"
             >
               <option value="all">All Categories</option>
               {ALL_CATEGORIES.map(c => (
@@ -426,27 +612,49 @@ export default function AuthorityDashboard() {
               ))}
             </select>
 
-            {/* Severity filter */}
+            {/* Severity */}
             <select
               value={filterSeverity}
               onChange={e => setFilterSeverity(e.target.value)}
-              className="rounded-lg border bg-background px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
+              className="rounded-lg border bg-background px-2 py-1.5 text-[11px] font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 hidden sm:block"
             >
               <option value="all">All Severities</option>
               {['critical', 'high', 'medium', 'low'].map(s => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
+
+            {/* AI Processed */}
+            <select
+              value={filterAi}
+              onChange={e => setFilterAi(e.target.value)}
+              className="rounded-lg border bg-background px-2 py-1.5 text-[11px] font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 hidden lg:block"
+            >
+              <option value="all">AI Analysis (All)</option>
+              <option value="processed">Processed</option>
+              <option value="unprocessed">Unprocessed</option>
+            </select>
+            
+            {/* Verification */}
+            <select
+              value={filterVerif}
+              onChange={e => setFilterVerif(e.target.value)}
+              className="rounded-lg border bg-background px-2 py-1.5 text-[11px] font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 hidden xl:block"
+            >
+              <option value="all">Community Verif. (All)</option>
+              <option value="unverified">Unverified</option>
+              <option value="community_verified">Verified</option>
+              <option value="disputed">Disputed</option>
+            </select>
           </div>
 
           {/* Sort */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-muted-foreground">Sort:</span>
+          <div className="flex items-center gap-2 flex-wrap border-t pt-3 mt-1">
+            <span className="text-xs font-semibold text-muted-foreground uppercase">Sort:</span>
             <SortButton label="Date" k="createdAt" />
             <SortButton label="Urgency" k="urgencyScore" />
-            <SortButton label="Trust Score" k="communityScore" />
-            <span className="text-xs text-muted-foreground ml-auto">
-              {filtered.length} of {total} issues
+            <span className="text-xs font-medium text-slate-500 ml-auto">
+              Showing {filtered.length} of {total} cases
             </span>
           </div>
         </CardContent>
@@ -454,20 +662,24 @@ export default function AuthorityDashboard() {
 
       {/* Issues list */}
       {loading ? (
-        <div className="flex items-center justify-center py-20 gap-3 text-muted-foreground">
-          <Loader2 className="h-6 w-6 animate-spin" />
-          <span className="text-sm">Loading issues…</span>
+        <div className="flex flex-col items-center justify-center py-24 gap-4 text-muted-foreground">
+          <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+          <span className="text-sm font-medium">Loading case queue...</span>
         </div>
       ) : filtered.length === 0 ? (
-        <Card className="border-dashed">
+        <Card className="border-dashed shadow-none">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <Filter className="h-10 w-10 text-muted-foreground mb-3" />
-            <p className="font-medium text-muted-foreground">No issues match filters</p>
+            <Filter className="h-10 w-10 text-slate-300 mb-3" />
+            <p className="font-medium text-slate-500">No cases match the current filters.</p>
             <button
-              className="mt-3 text-xs text-primary hover:underline"
-              onClick={() => { setFilterStatus('all'); setFilterCategory('all'); setFilterSeverity('all'); }}
+              className="mt-3 text-xs font-medium text-indigo-600 hover:underline"
+              onClick={() => { 
+                setSearchQuery('');
+                setFilterStatus('all'); setFilterCategory('all'); setFilterSeverity('all'); 
+                setFilterDept('all'); setFilterAi('all'); setFilterVerif('all');
+              }}
             >
-              Clear filters
+              Clear all filters
             </button>
           </CardContent>
         </Card>
@@ -481,3 +693,4 @@ export default function AuthorityDashboard() {
     </div>
   );
 }
+

@@ -58,8 +58,8 @@ export function CommunityVerification({ issue, userId }: Props) {
     },
     {
       key: 'resolved' as ActionKey,
-      label: 'Mark Resolved',
-      activeLabel: 'Resolved ✓',
+      label: 'Looks Fixed',
+      activeLabel: 'Looks Fixed ✓',
       icon: CheckCircle2,
       count: issue.resolvedReports ?? 0,
       active: hasResolved,
