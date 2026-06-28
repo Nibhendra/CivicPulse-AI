@@ -86,9 +86,6 @@ export async function verifyFirebaseIdToken(token: string, projectId: string): P
   if (payload.aud !== projectId) {
     throw new Error(`Invalid audience: ${payload.aud}`);
   }
-  if (payload.sub !== payload.uid) {
-    throw new Error('sub claims does not match uid');
-  }
   if (payload.exp < now) {
     throw new Error('Token has expired');
   }
@@ -109,6 +106,9 @@ export async function verifyFirebaseIdToken(token: string, projectId: string): P
   if (!isValid) {
     throw new Error('Invalid token signature');
   }
+
+  // Firebase Admin SDK maps sub directly to uid for convenience
+  payload.uid = payload.sub;
 
   return payload;
 }
