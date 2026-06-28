@@ -1,4 +1,4 @@
-import type { NearbyIssue } from '../utils/validation';
+import type { NearbyIssue } from '../utils/validation.js';
 
 export interface DuplicateResult {
   isDuplicate: boolean;
