@@ -3,11 +3,12 @@ import cors from 'cors';
 import { processIssueRouter } from './routes/processIssue.js';
 import { generateComplaintRouter } from './routes/generateComplaint.js';
 
-import { initializeApp, getApps } from 'firebase-admin/app';
+// import { initializeApp, getApps } from 'firebase-admin/app';
 import { verifyAuthToken } from './middleware/auth.js';
 
 const app = express();
 
+/*
 try {
   if (getApps().length === 0) {
     const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
@@ -21,6 +22,7 @@ try {
 } catch (err) {
   console.error('❌ Failed to initialize Firebase Admin SDK:', err);
 }
+*/
 
 // ── Middleware ─────────────────────────────────────────────────────────────────
 // Allow any localhost port (5173, 5174, 4173, etc.) so it works regardless
