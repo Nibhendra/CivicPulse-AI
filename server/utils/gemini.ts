@@ -1,9 +1,9 @@
 import { GoogleGenerativeAI, type Part } from '@google/generative-ai';
 
 // Validate API key at startup
-const apiKey = process.env.GEMINI_API_KEY;
+const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
 if (!apiKey || apiKey === 'your_gemini_api_key_here') {
-  console.error('❌ GEMINI_API_KEY is missing or is a placeholder. Set it in server/.env');
+  console.error('❌ GEMINI_API_KEY or VITE_GEMINI_API_KEY is missing or is a placeholder. Set it in server/.env');
 }
 
 const genAI = new GoogleGenerativeAI(apiKey || '');

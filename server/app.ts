@@ -36,11 +36,12 @@ app.use((req, _res, next) => {
 
 // ── Health check ───────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
+  const geminiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-    geminiConfigured: !!(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your_gemini_api_key_here'),
+    geminiConfigured: !!(geminiKey && geminiKey !== 'your_gemini_api_key_here'),
   });
 });
 
