@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express';
-import { validateGenerateComplaintBody, type GenerateComplaintBody } from '../utils/validation.js';
-import { ensureFormalComplaint } from '../agent/generateComplaint.js';
-import { assignDepartment } from '../agent/assignDepartment.js';
+import { validateGenerateComplaintBody, type GenerateComplaintBody } from '../utils/validation';
+import { ensureFormalComplaint } from '../agent/generateComplaint';
+import { assignDepartment } from '../agent/assignDepartment';
 
 export const generateComplaintRouter = Router();
 
