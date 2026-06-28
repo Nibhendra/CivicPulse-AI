@@ -466,8 +466,8 @@ export default function IssueDetailPage() {
                 {/* Confidence + AI category */}
                 <p className="text-xs text-muted-foreground text-center">
                   AI Category: <span className="font-medium capitalize">{(issue.aiCategory ?? issue.category).replace(/_/g, ' ')}</span>
-                  {' Â· '}
-                  Confidence: <span className="font-medium">{issue.aiConfidence != null ? `${Math.round(issue.aiConfidence)}%` : 'â€”'}</span>
+                  {' \u00b7 '}
+                  Confidence: <span className="font-medium">{issue.aiConfidence != null ? `${Math.round(issue.aiConfidence)}%` : '\u2014'}</span>
                 </p>
 
                 {/* Re-run button â€” only for issue owner */}
@@ -520,7 +520,7 @@ export default function IssueDetailPage() {
                             ? new Date((entry.timestamp as any).seconds * 1000)
                             : new Date(entry.timestamp as string);
                           return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) +
-                            ' Â· ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+                            ' \u00b7 ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
                         } catch { return ''; }
                       })()
                     : '';
@@ -579,7 +579,7 @@ export default function IssueDetailPage() {
                               const d = comment.createdAt.seconds
                                 ? new Date(comment.createdAt.seconds * 1000)
                                 : new Date(comment.createdAt);
-                              return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) + ' Â· ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+                              return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) + ' \u00b7 ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
                             } catch { return ''; }
                           })()
                         : '';
