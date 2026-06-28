@@ -1,10 +1,10 @@
 import express from 'express';
 import cors from 'cors';
-import { processIssueRouter } from './routes/processIssue';
-import { generateComplaintRouter } from './routes/generateComplaint';
+import { processIssueRouter } from './routes/processIssue.js';
+import { generateComplaintRouter } from './routes/generateComplaint.js';
 
 import { initializeApp, getApps } from 'firebase-admin/app';
-import { verifyAuthToken } from './middleware/auth';
+import { verifyAuthToken } from './middleware/auth.js';
 
 const app = express();
 

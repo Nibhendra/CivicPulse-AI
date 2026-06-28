@@ -1,9 +1,9 @@
-import { analyzeIssueImage } from './analyzeIssueImage';
-import { detectDuplicate } from './detectDuplicate';
-import { assignDepartment } from './assignDepartment';
-import { calculateUrgency } from './calculateUrgency';
-import { ensureFormalComplaint } from './generateComplaint';
-import type { ProcessIssueBody } from '../utils/validation';
+import { analyzeIssueImage } from './analyzeIssueImage.js';
+import { detectDuplicate } from './detectDuplicate.js';
+import { assignDepartment } from './assignDepartment.js';
+import { calculateUrgency } from './calculateUrgency.js';
+import { ensureFormalComplaint } from './generateComplaint.js';
+import type { ProcessIssueBody } from '../utils/validation.js';
 
 export interface AgentResult {
   aiCategory: string;

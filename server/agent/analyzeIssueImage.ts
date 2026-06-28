@@ -1,4 +1,4 @@
-import { callGemini, fetchImagePart, stripMarkdown } from '../utils/gemini';
+import { callGemini, fetchImagePart, stripMarkdown } from '../utils/gemini.js';
 
 export type AISeverity = 'low' | 'medium' | 'high' | 'critical';
 export type AIPriority = 'low' | 'medium' | 'high' | 'critical';

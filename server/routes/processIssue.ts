@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from 'express';
-import { validateProcessIssueBody, type ProcessIssueBody } from '../utils/validation';
-import { runCivicRescueAgent } from '../agent/civicRescueAgent';
+import { validateProcessIssueBody, type ProcessIssueBody } from '../utils/validation.js';
+import { runCivicRescueAgent } from '../agent/civicRescueAgent.js';
 
 export const processIssueRouter = Router();
 
