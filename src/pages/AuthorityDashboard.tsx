@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Shield, Filter, ArrowUpDown, ChevronDown, ChevronUp,
   CheckCircle2, Clock, AlertTriangle, Loader2, Building2,
@@ -11,6 +11,19 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+
+declare const L: any;
+
+const categories = [
+  { value: 'pothole', label: 'Road / Pothole', color: 'bg-red-500', hex: '#ef4444' },
+  { value: 'broken_road', label: 'Broken Road', color: 'bg-orange-500', hex: '#f97316' },
+  { value: 'drain', label: 'Water & Drainage', color: 'bg-amber-500', hex: '#f59e0b' },
+  { value: 'water_leak', label: 'Water Leakage', color: 'bg-blue-500', hex: '#3b82f6' },
+  { value: 'garbage', label: 'Garbage / Waste', color: 'bg-green-500', hex: '#22c55e' },
+  { value: 'streetlight', label: 'Street Lighting', color: 'bg-yellow-500', hex: '#eab308' },
+  { value: 'public_infra', label: 'Public Infrastructure', color: 'bg-purple-500', hex: '#a855f7' },
+  { value: 'other', label: 'Other', color: 'bg-slate-500', hex: '#64748b' },
+];
 
 // Types
 
@@ -418,6 +431,13 @@ function IssueRow({ issue }: IssueRowProps) {
 export default function AuthorityDashboard() {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Map & View Mode states
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<any>(null);
+  const markersGroupRef = useRef<any>(null);
+  const [mapError, setMapError] = useState<string | null>(null);
   
   // Filters & Search
   const [searchQuery, setSearchQuery] = useState('');
@@ -502,6 +522,112 @@ export default function AuthorityDashboard() {
     return result;
   }, [issues, searchQuery, filterStatus, filterCategory, filterSeverity, filterDept, filterAi, filterVerif, sortKey, sortDir]);
 
+  // Initialize/destroy map when viewMode changes
+  useEffect(() => {
+    if (viewMode !== 'map') {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+        markersGroupRef.current = null;
+      }
+      return;
+    }
+
+    // Wait a brief tick for the container DOM node to render and occupy space
+    const timer = setTimeout(() => {
+      if (!mapContainerRef.current) return;
+      if (typeof L === 'undefined') {
+        setMapError('Leaflet failed to load. Please check your connection.');
+        return;
+      }
+
+      const defaultCenter = [20.5937, 78.9629];
+      const defaultZoom = 5;
+
+      const map = L.map(mapContainerRef.current, {
+        center: defaultCenter,
+        zoom: defaultZoom,
+        zoomControl: false,
+      });
+
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+      }).addTo(map);
+
+      const markersGroup = L.featureGroup().addTo(map);
+
+      mapRef.current = map;
+      markersGroupRef.current = markersGroup;
+      setMapError(null);
+    }, 50);
+
+    return () => {
+      clearTimeout(timer);
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+        markersGroupRef.current = null;
+      }
+    };
+  }, [viewMode]);
+
+  // Update map markers when filtered list changes
+  useEffect(() => {
+    const map = mapRef.current;
+    const markersGroup = markersGroupRef.current;
+    if (!map || !markersGroup || viewMode !== 'map') return;
+
+    markersGroup.clearLayers();
+    const markersList: any[] = [];
+
+    const mappable = filtered.filter(
+      (i) => i.latitude !== 0 && i.longitude !== 0 && i.latitude != null && i.longitude != null
+    );
+
+    mappable.forEach((issue) => {
+      const lat = issue.latitude;
+      const lng = issue.longitude;
+      if (!lat || !lng) return;
+
+      const catInfo = categories.find((c) => c.value === issue.category) || categories[categories.length - 1];
+
+      const customIcon = L.divIcon({
+        html: `<div class="flex items-center justify-center w-6 h-6 rounded-full border-2 border-white shadow-lg ${catInfo.color} text-white"><span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span></div>`,
+        className: 'custom-marker-icon',
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+      });
+
+      const popupContent = document.createElement('div');
+      popupContent.className = 'p-1 text-slate-800 text-xs w-48 animate-fade-in';
+      popupContent.innerHTML = `
+        <div class="font-bold text-sm leading-tight mb-1 truncate">${issue.title || 'Untitled Issue'}</div>
+        <div class="text-[10px] text-muted-foreground mb-1 uppercase tracking-wider font-semibold">${issue.category.replace(/_/g, ' ')}</div>
+        ${issue.imageURLs?.[0] ? `<img src="${issue.imageURLs[0]}" class="w-full h-20 object-cover rounded-md mb-2" />` : ''}
+        <div class="line-clamp-2 text-[11px] mb-2 text-slate-600">${issue.description || 'No description provided.'}</div>
+        <div class="flex items-center justify-between border-t pt-2 mt-1">
+          <span class="text-[10px] bg-slate-100 border px-1.5 py-0.5 rounded capitalize">${issue.status.replace(/_/g, ' ')}</span>
+          <span class="text-[10px] font-bold text-indigo-600 capitalize">Severity: ${issue.aiSeverity || 'medium'}</span>
+        </div>
+      `;
+
+      const marker = L.marker([lat, lng], { icon: customIcon }).bindPopup(popupContent);
+      markersGroup.addLayer(marker);
+      markersList.push(marker);
+    });
+
+    if (markersList.length > 0) {
+      try {
+        const bounds = markersGroup.getBounds();
+        map.fitBounds(bounds, { padding: [30, 30], maxZoom: 16 });
+      } catch (err) {
+        console.warn('Could not auto-zoom map bounds:', err);
+      }
+    }
+  }, [filtered, viewMode]);
+
   // Summary stats
   const total = issues.length;
   const resolved = issues.filter(i => i.status === 'resolved' || i.status === 'closed').length;
@@ -571,6 +697,34 @@ export default function AuthorityDashboard() {
             </Card>
           );
         })}
+      </div>
+
+      {/* View Switcher Tabs */}
+      <div className="flex border-b border-slate-200">
+        <button
+          onClick={() => setViewMode('list')}
+          className={cn(
+            'flex items-center gap-2 px-6 py-3 text-sm font-semibold border-b-2 transition-all',
+            viewMode === 'list'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          )}
+        >
+          <Filter className="h-4 w-4" />
+          List Queue
+        </button>
+        <button
+          onClick={() => setViewMode('map')}
+          className={cn(
+            'flex items-center gap-2 px-6 py-3 text-sm font-semibold border-b-2 transition-all',
+            viewMode === 'map'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          )}
+        >
+          <MapPin className="h-4 w-4" />
+          Map Explorer View
+        </button>
       </div>
 
       {/* Filter + Search bar */}
@@ -678,35 +832,73 @@ export default function AuthorityDashboard() {
         </CardContent>
       </Card>
 
-      {/* Issues list */}
-      {loading ? (
-        <div className="flex flex-col items-center justify-center py-24 gap-4 text-muted-foreground">
-          <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
-          <span className="text-sm font-medium">Loading case queue...</span>
+      {/* View Content */}
+      {viewMode === 'map' ? (
+        <div className="space-y-4 animate-in fade-in duration-300">
+          <Card className="overflow-hidden border shadow-sm relative w-full h-[550px]">
+            <CardContent className="p-0 h-full w-full relative">
+              {mapError && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center z-20 bg-destructive/5 gap-3">
+                  <AlertTriangle className="h-10 w-10 text-destructive" />
+                  <p className="font-semibold text-sm text-destructive">{mapError}</p>
+                </div>
+              )}
+              <div
+                ref={mapContainerRef}
+                className="w-full h-full z-10"
+                style={{ minHeight: '550px' }}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Legend */}
+          <Card className="shrink-0 border shadow-sm">
+            <CardContent className="p-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Category Colors
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {categories.map((cat) => (
+                  <Badge key={cat.value} variant="outline" className="gap-1.5 text-xs py-1">
+                    <span className={`h-2.5 w-2.5 rounded-full ${cat.color}`} />
+                    {cat.label}
+                  </Badge>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </div>
-      ) : filtered.length === 0 ? (
-        <Card className="border-dashed shadow-none">
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <Filter className="h-10 w-10 text-slate-300 mb-3" />
-            <p className="font-medium text-slate-500">No cases match the current filters.</p>
-            <button
-              className="mt-3 text-xs font-medium text-indigo-600 hover:underline"
-              onClick={() => { 
-                setSearchQuery('');
-                setFilterStatus('all'); setFilterCategory('all'); setFilterSeverity('all'); 
-                setFilterDept('all'); setFilterAi('all'); setFilterVerif('all');
-              }}
-            >
-              Clear all filters
-            </button>
-          </CardContent>
-        </Card>
       ) : (
-        <div className="space-y-3">
-          {filtered.map(issue => (
-            <IssueRow key={issue.id} issue={issue} onUpdated={() => {}} />
-          ))}
-        </div>
+        /* Issues list */
+        loading ? (
+          <div className="flex flex-col items-center justify-center py-24 gap-4 text-muted-foreground">
+            <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+            <span className="text-sm font-medium">Loading case queue...</span>
+          </div>
+        ) : filtered.length === 0 ? (
+          <Card className="border-dashed shadow-none">
+            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+              <Filter className="h-10 w-10 text-slate-300 mb-3" />
+              <p className="font-medium text-slate-500">No cases match the current filters.</p>
+              <button
+                className="mt-3 text-xs font-medium text-indigo-600 hover:underline"
+                onClick={() => { 
+                  setSearchQuery('');
+                  setFilterStatus('all'); setFilterCategory('all'); setFilterSeverity('all'); 
+                  setFilterDept('all'); setFilterAi('all'); setFilterVerif('all');
+                }}
+              >
+                Clear all filters
+              </button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {filtered.map(issue => (
+              <IssueRow key={issue.id} issue={issue} onUpdated={() => {}} />
+            ))}
+          </div>
+        )
       )}
     </div>
   );
