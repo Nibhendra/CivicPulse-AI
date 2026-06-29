@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Camera, MapPin, FileText, CheckCircle, ChevronRight, ChevronLeft, Send, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -42,6 +42,7 @@ export function IssueForm() {
   const [isValidatingImage, setIsValidatingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [isLocatingImage, setIsLocatingImage] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   // Form state
   const [imageUrl, setImageUrl] = useState('');
@@ -57,54 +58,55 @@ export function IssueForm() {
     locality: '',
   });
 
-  const handleUploadStart = () => {
-    if (navigator.geolocation) {
-      setIsLocatingImage(true);
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
-          
-          setLocation((prev) => ({
-            ...prev,
-            latitude: lat,
-            longitude: lng,
-          }));
-
-          try {
-            const geoInfo = await reverseGeocode(lat, lng);
-            if (geoInfo) {
-              setLocation((prev) => ({
-                ...prev,
-                address: geoInfo.address,
-                locality: geoInfo.locality,
-              }));
-            }
-          } catch (err) {
-            console.error('[Geotag] Reverse geocoding failed:', err);
-          } finally {
-            setIsLocatingImage(false);
-          }
-        },
-        (err) => {
-          console.warn('[Geotag] Geolocation fetch failed at photo click time:', err);
-          setIsLocatingImage(false);
-        },
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-      );
+  // Fetch location IMMEDIATELY when form mounts (like MCD 311)
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by your browser.');
+      return;
     }
-  };
+
+    setIsLocatingImage(true);
+    setLocationError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+
+        setLocation((prev) => ({
+          ...prev,
+          latitude: lat,
+          longitude: lng,
+        }));
+
+        try {
+          const geoInfo = await reverseGeocode(lat, lng);
+          if (geoInfo) {
+            setLocation((prev) => ({
+              ...prev,
+              address: geoInfo.address,
+              locality: geoInfo.locality,
+            }));
+          }
+        } catch (err) {
+          console.error('[Geotag] Reverse geocoding failed:', err);
+        } finally {
+          setIsLocatingImage(false);
+        }
+      },
+      (err) => {
+        console.warn('[Geotag] Geolocation failed:', err);
+        setLocationError('Location access denied. You can enter the address manually in Step 3.');
+        setIsLocatingImage(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  }, []);
 
   const handleImageChange = async (url: string) => {
     setImageUrl(url);
     if (!url) {
       setImageError(null);
-      setLocation({
-        latitude: null,
-        longitude: null,
-        address: '',
-        locality: '',
-      });
       return;
     }
 
@@ -223,31 +225,57 @@ export function IssueForm() {
         {/* ── Step 1: Photo ── */}
         {currentStep === 1 && (
           <div className="space-y-4">
-            <div className="text-center mb-6">
-              <h2 className="text-xl font-bold">Add a Photo</h2>
-              <p className="text-sm text-muted-foreground">A clear picture helps authorities identify the issue.</p>
+            <div className="text-center mb-4">
+              <h2 className="text-xl font-bold">Report an Issue</h2>
+              <p className="text-sm text-muted-foreground">Take a photo and we'll capture your location automatically.</p>
             </div>
-            
-            <ImageUploader 
-              onChange={handleImageChange} 
-              onUploadStart={handleUploadStart} 
-              defaultImage={imageUrl} 
-            />
-            
+
+            {/* Location Status Banner — always visible on Step 1 */}
             {isLocatingImage && (
-              <div className="flex items-center gap-2 justify-center text-xs text-blue-600 bg-blue-50/50 p-2.5 rounded-xl border border-blue-100/50 animate-pulse">
-                <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-                <span>Geotagging photo location...</span>
+              <div className="flex items-center gap-3 p-3 rounded-xl border border-blue-200 bg-blue-50/70">
+                <div className="rounded-full bg-blue-100 p-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-blue-800">Fetching your location...</p>
+                  <p className="text-xs text-blue-600">This helps authorities find the issue quickly.</p>
+                </div>
               </div>
             )}
 
             {!isLocatingImage && location.latitude && (
-              <div className="flex items-center gap-2 justify-center text-xs text-emerald-600 bg-emerald-50/50 p-2.5 rounded-xl border border-emerald-100/50">
-                <MapPin className="h-4 w-4 text-emerald-500 animate-bounce" />
-                <span>Geotagged at: <strong>{location.locality || location.address || 'Detected Area'}</strong></span>
+              <div className="flex items-center gap-3 p-3 rounded-xl border border-emerald-200 bg-emerald-50/70">
+                <div className="rounded-full bg-emerald-100 p-2">
+                  <MapPin className="h-4 w-4 text-emerald-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-emerald-800">Location Captured</p>
+                  <p className="text-xs text-emerald-700 truncate">
+                    {location.locality || location.address || `${location.latitude.toFixed(4)}, ${location.longitude?.toFixed(4)}`}
+                  </p>
+                </div>
+                <CheckCircle className="h-5 w-5 text-emerald-500 shrink-0" />
               </div>
             )}
 
+            {!isLocatingImage && locationError && (
+              <div className="flex items-center gap-3 p-3 rounded-xl border border-amber-200 bg-amber-50/70">
+                <div className="rounded-full bg-amber-100 p-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-amber-800">Location Unavailable</p>
+                  <p className="text-xs text-amber-600">{locationError}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Photo uploader */}
+            <ImageUploader 
+              onChange={handleImageChange} 
+              defaultImage={imageUrl} 
+            />
+            
             {isValidatingImage && (
               <div className="flex items-center gap-2 justify-center text-xs text-indigo-600 bg-indigo-50/50 p-2.5 rounded-xl border border-indigo-100/50 animate-pulse">
                 <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
