@@ -556,7 +556,7 @@ export default function AuthorityDashboard() {
         attribution: '&copy; OpenStreetMap contributors',
       }).addTo(map);
 
-      const markersGroup = L.featureGroup().addTo(map);
+      const markersGroup = L.markerClusterGroup().addTo(map);
 
       mapRef.current = map;
       markersGroupRef.current = markersGroup;

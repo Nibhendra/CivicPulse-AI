@@ -67,7 +67,7 @@ export default function MapPage() {
     }).addTo(map);
 
     // Create group layer for markers
-    const markersGroup = L.featureGroup().addTo(map);
+    const markersGroup = L.markerClusterGroup().addTo(map);
 
     mapRef.current = map;
     markersGroupRef.current = markersGroup;
