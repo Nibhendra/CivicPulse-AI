@@ -5,13 +5,21 @@ import { uploadImageToCloudinary } from '@/lib/cloudinary';
 
 interface ImageUploaderProps {
   onChange: (url: string) => void;
+  onUploadStart?: () => void;
   defaultImage?: string;
 }
 
-export function ImageUploader({ onChange, defaultImage }: ImageUploaderProps) {
+export function ImageUploader({ onChange, onUploadStart, defaultImage }: ImageUploaderProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(defaultImage || null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const triggerFileInput = () => {
+    if (onUploadStart) {
+      onUploadStart();
+    }
+    inputRef.current?.click();
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -47,7 +55,7 @@ export function ImageUploader({ onChange, defaultImage }: ImageUploaderProps) {
       
       <div 
         className="relative flex h-64 w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-muted-foreground/25 bg-muted/20 transition-all hover:bg-muted/40"
-        onClick={() => inputRef.current?.click()}
+        onClick={triggerFileInput}
       >
         {preview ? (
           <>
@@ -76,7 +84,7 @@ export function ImageUploader({ onChange, defaultImage }: ImageUploaderProps) {
       </div>
 
       {!preview && (
-        <Button onClick={() => inputRef.current?.click()} className="w-full shadow-sm" size="lg">
+        <Button onClick={triggerFileInput} className="w-full shadow-sm" size="lg">
           <Camera className="mr-2 h-5 w-5" />
           Take Photo
         </Button>

@@ -57,23 +57,7 @@ export function IssueForm() {
     locality: '',
   });
 
-  const handleImageChange = async (url: string) => {
-    setImageUrl(url);
-    if (!url) {
-      setImageError(null);
-      setLocation({
-        latitude: null,
-        longitude: null,
-        address: '',
-        locality: '',
-      });
-      return;
-    }
-
-    setIsValidatingImage(true);
-    setImageError(null);
-
-    // Concurrently fetch location at photo capture time
+  const handleUploadStart = () => {
     if (navigator.geolocation) {
       setIsLocatingImage(true);
       navigator.geolocation.getCurrentPosition(
@@ -103,12 +87,29 @@ export function IssueForm() {
           }
         },
         (err) => {
-          console.warn('[Geotag] Geolocation fetch failed at photo capture time:', err);
+          console.warn('[Geotag] Geolocation fetch failed at photo click time:', err);
           setIsLocatingImage(false);
         },
         { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
       );
     }
+  };
+
+  const handleImageChange = async (url: string) => {
+    setImageUrl(url);
+    if (!url) {
+      setImageError(null);
+      setLocation({
+        latitude: null,
+        longitude: null,
+        address: '',
+        locality: '',
+      });
+      return;
+    }
+
+    setIsValidatingImage(true);
+    setImageError(null);
 
     try {
       const token = user ? await user.getIdToken() : '';
@@ -172,13 +173,11 @@ export function IssueForm() {
   };
 
   const isNextDisabled = () => {
-    if (currentStep === 1) return isValidatingImage || !!imageError;
+    if (currentStep === 1) return !imageUrl || isValidatingImage || !!imageError;
     if (currentStep === 2) return !details.title.trim() || !details.description.trim() || !details.category;
     if (currentStep === 3) {
-      const hasImage = !!imageUrl.trim();
       const hasLocation = !!location.address.trim() || location.latitude !== null;
-      if (!hasImage) return !hasLocation; // If no photo, must provide address or GPS
-      return false;
+      return !hasLocation; // Geolocation coordinates or manual address is required
     }
     return false;
   };
@@ -229,7 +228,11 @@ export function IssueForm() {
               <p className="text-sm text-muted-foreground">A clear picture helps authorities identify the issue.</p>
             </div>
             
-            <ImageUploader onChange={handleImageChange} defaultImage={imageUrl} />
+            <ImageUploader 
+              onChange={handleImageChange} 
+              onUploadStart={handleUploadStart} 
+              defaultImage={imageUrl} 
+            />
             
             {isLocatingImage && (
               <div className="flex items-center gap-2 justify-center text-xs text-blue-600 bg-blue-50/50 p-2.5 rounded-xl border border-blue-100/50 animate-pulse">
@@ -267,12 +270,6 @@ export function IssueForm() {
                   </button>
                 </div>
               </div>
-            )}
-
-            {!imageUrl && (
-              <p className="text-center text-xs text-muted-foreground mt-2">
-                Photo is optional — you can still submit without one.
-              </p>
             )}
           </div>
         )}
