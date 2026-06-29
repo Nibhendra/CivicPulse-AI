@@ -59,6 +59,10 @@ export default function MapPage() {
       zoomControl: false,
     });
 
+    if (map.attributionControl) {
+      map.attributionControl.setPrefix('<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a>');
+    }
+
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
     // Load OpenStreetMap Tiles

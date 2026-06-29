@@ -550,6 +550,10 @@ export default function AuthorityDashboard() {
         zoomControl: false,
       });
 
+      if (map.attributionControl) {
+        map.attributionControl.setPrefix('<a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a>');
+      }
+
       L.control.zoom({ position: 'bottomright' }).addTo(map);
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
