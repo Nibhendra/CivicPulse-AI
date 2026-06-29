@@ -89,8 +89,8 @@ npm run dev:full
 * **SPA Routing:** Configured natively for Vercel using `vercel.json` to handle React Router client-side routes effortlessly.
 
 * Project Link - https://civic-pulse-ai-iota.vercel.app/
-User Demo Link - https://drive.google.com/file/d/1KbqUM8nRgyMAFmmb-PQzqxNyelqCmWTy/view?usp=drive_link
-Admin Demo Link - https://drive.google.com/file/d/1OzdVfpN5JMPNrpKHeEOvKLho104v2cWm/view?usp=drive_link
+* User Demo Link - https://drive.google.com/file/d/1KbqUM8nRgyMAFmmb-PQzqxNyelqCmWTy/view?usp=drive_link
+* Admin Demo Link - https://drive.google.com/file/d/1OzdVfpN5JMPNrpKHeEOvKLho104v2cWm/view?usp=drive_link
 
 ---
 *Created with ❤️ for smarter, cleaner cities.*
