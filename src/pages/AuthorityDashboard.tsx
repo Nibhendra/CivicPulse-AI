@@ -142,8 +142,25 @@ function IssueRow({ issue }: IssueRowProps) {
 
   const hasChanges = newStatus !== issue.status || department !== (issue.assignedDepartment || '') || note.trim().length > 0;
 
+  const isTerminal = ['resolved', 'closed', 'rejected'].includes(issue.status);
+  
+  const isStatusDisabled = (s: IssueStatus) => {
+    if (isTerminal) {
+      return ['submitted', 'under_review', 'assigned', 'in_progress'].includes(s);
+    }
+    return false;
+  };
+
   const handleSave = async () => {
     if (!user || !hasChanges) return;
+
+    if (newStatus !== issue.status) {
+      const confirmChange = window.confirm(
+        `Are you sure you want to change the status of this issue from "${STATUS_LABELS[issue.status]}" to "${STATUS_LABELS[newStatus]}"?\n\nOnce marked as resolved, closed, or rejected, the status cannot be reverted to earlier stages (like in-progress or assigned).`
+      );
+      if (!confirmChange) return;
+    }
+
     setSaving(true);
     try {
       await updateAuthorityCase(issue.id, {
@@ -376,20 +393,26 @@ function IssueRow({ issue }: IssueRowProps) {
             <div className="mb-4">
               <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-2">Official Status</label>
               <div className="flex flex-wrap gap-2">
-                {STATUS_FLOW.map(s => (
-                  <button
-                    key={s}
-                    onClick={() => setNewStatus(s)}
-                    className={cn(
-                      'px-3 py-1.5 rounded-lg text-xs font-medium border transition-all',
-                      newStatus === s
-                        ? (STATUS_COLORS[s] ?? 'bg-primary/10 border-primary text-primary') + ' ring-2 ring-primary/30 shadow-sm'
-                        : 'border-border text-muted-foreground hover:bg-muted'
-                    )}
-                  >
-                    {STATUS_LABELS[s]}
-                  </button>
-                ))}
+                {STATUS_FLOW.map(s => {
+                  const isDisabled = isStatusDisabled(s);
+                  return (
+                    <button
+                      key={s}
+                      disabled={isDisabled}
+                      onClick={() => setNewStatus(s)}
+                      className={cn(
+                        'px-3 py-1.5 rounded-lg text-xs font-medium border transition-all',
+                        isDisabled
+                          ? 'opacity-40 cursor-not-allowed bg-slate-100 border-slate-200 text-slate-400'
+                          : newStatus === s
+                          ? (STATUS_COLORS[s] ?? 'bg-primary/10 border-primary text-primary') + ' ring-2 ring-primary/30 shadow-sm'
+                          : 'border-border text-muted-foreground hover:bg-muted'
+                      )}
+                    >
+                      {STATUS_LABELS[s]}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
