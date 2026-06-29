@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { processIssueRouter } from './routes/processIssue.js';
 import { generateComplaintRouter } from './routes/generateComplaint.js';
+import { validateImageRouter } from './routes/validateImage.js';
 
 import { verifyAuthToken } from './middleware/auth.js';
 
@@ -48,10 +49,12 @@ app.get('/api/health', (_req, res) => {
 // ── Secure API routes ──────────────────────────────────────────────────────────
 app.use('/api/process-issue', verifyAuthToken);
 app.use('/api/generate-complaint', verifyAuthToken);
+app.use('/api/validate-image', verifyAuthToken);
 
 // ── API routes ─────────────────────────────────────────────────────────────────
 app.use('/api', processIssueRouter);
 app.use('/api', generateComplaintRouter);
+app.use('/api', validateImageRouter);
 
 // ── 404 catch-all ─────────────────────────────────────────────────────────────
 app.use((_req, res) => {

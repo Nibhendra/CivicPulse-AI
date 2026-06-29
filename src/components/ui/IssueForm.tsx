@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Camera, MapPin, FileText, CheckCircle, ChevronRight, ChevronLeft, Send, Check, AlertCircle } from 'lucide-react';
+import { Camera, MapPin, FileText, CheckCircle, ChevronRight, ChevronLeft, Send, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { LocationPicker } from './LocationPicker';
 import { createIssue } from '@/lib/issues';
 import type { IssueCategory } from '@/types/issue';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 
 const steps = [
   { id: 1, icon: Camera, label: 'Photo' },
@@ -30,10 +31,15 @@ const CATEGORIES: { value: IssueCategory; label: string }[] = [
 ];
 
 export function IssueForm() {
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  // Image validation states
+  const [isValidatingImage, setIsValidatingImage] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
 
   // Form state
   const [imageUrl, setImageUrl] = useState('');
@@ -48,6 +54,47 @@ export function IssueForm() {
     address: '',
     locality: '',
   });
+
+  const handleImageChange = async (url: string) => {
+    setImageUrl(url);
+    if (!url) {
+      setImageError(null);
+      return;
+    }
+
+    setIsValidatingImage(true);
+    setImageError(null);
+    try {
+      const token = user ? await user.getIdToken() : '';
+      const response = await fetch('/api/validate-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ imageURL: url })
+      });
+
+      if (!response.ok) {
+        throw new Error('Image validation service is temporarily offline.');
+      }
+
+      const result = await response.json();
+      if (result.success) {
+        if (!result.isValid) {
+          setImageError(result.reason || 'This image is invalid for civic reporting.');
+        }
+      } else {
+        throw new Error(result.error || 'Failed to validate image.');
+      }
+    } catch (err) {
+      console.warn('Image verification failed (allowing submission as fallback):', err);
+      // Fail-open: do not block legitimate reports if the AI validator service fails
+      setImageError(null);
+    } finally {
+      setIsValidatingImage(false);
+    }
+  };
 
   const handleNext = () => setCurrentStep((prev) => Math.min(prev + 1, steps.length));
   const handlePrev = () => setCurrentStep((prev) => Math.max(prev - 1, 1));
@@ -79,7 +126,7 @@ export function IssueForm() {
   };
 
   const isNextDisabled = () => {
-    if (currentStep === 1) return false; // Photo is optional — user can skip
+    if (currentStep === 1) return isValidatingImage || !!imageError;
     if (currentStep === 2) return !details.title.trim() || !details.description.trim() || !details.category;
     if (currentStep === 3) {
       const hasImage = !!imageUrl.trim();
@@ -135,7 +182,33 @@ export function IssueForm() {
               <h2 className="text-xl font-bold">Add a Photo</h2>
               <p className="text-sm text-muted-foreground">A clear picture helps authorities identify the issue.</p>
             </div>
-            <ImageUploader onChange={setImageUrl} defaultImage={imageUrl} />
+            
+            <ImageUploader onChange={handleImageChange} defaultImage={imageUrl} />
+            
+            {isValidatingImage && (
+              <div className="flex items-center gap-2 justify-center text-xs text-indigo-600 bg-indigo-50/50 p-2.5 rounded-xl border border-indigo-100/50 animate-pulse">
+                <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
+                <span>AI is verifying the photo...</span>
+              </div>
+            )}
+
+            {imageError && (
+              <div className="flex items-start gap-2 text-xs text-red-700 bg-red-50 p-3 rounded-xl border border-red-100">
+                <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-red-800">Invalid Photo</p>
+                  <p className="mt-0.5 text-red-700 leading-relaxed">{imageError}</p>
+                  <button 
+                    type="button" 
+                    onClick={() => handleImageChange('')} 
+                    className="mt-1.5 text-xs font-semibold text-red-800 underline hover:text-red-950"
+                  >
+                    Remove and try another
+                  </button>
+                </div>
+              </div>
+            )}
+
             {!imageUrl && (
               <p className="text-center text-xs text-muted-foreground mt-2">
                 Photo is optional — you can still submit without one.
