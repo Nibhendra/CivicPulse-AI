@@ -332,8 +332,10 @@ export function IssueForm() {
         {currentStep === 3 && (
           <div className="space-y-4">
             <div className="text-center mb-6">
-              <h2 className="text-xl font-bold">Location</h2>
-              <p className="text-sm text-muted-foreground">Pinpoint where this issue is located.</p>
+              <h2 className="text-xl font-bold">Confirm Location</h2>
+              <p className="text-sm text-muted-foreground">
+                {location.latitude ? 'Location was auto-captured. Verify or edit below.' : 'Enter the address of the issue.'}
+              </p>
             </div>
             <LocationPicker onChange={setLocation} defaultData={location} />
           </div>

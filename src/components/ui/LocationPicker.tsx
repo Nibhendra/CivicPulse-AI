@@ -1,9 +1,7 @@
-import { useState } from 'react';
-import { MapPin, Navigation, Map } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useState, useEffect } from 'react';
+import { MapPin, Map, CheckCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { reverseGeocode } from '@/lib/location';
 
 export interface LocationData {
   latitude: number | null;
@@ -24,8 +22,13 @@ export function LocationPicker({ onChange, defaultData }: LocationPickerProps) {
     address: defaultData?.address || '',
     locality: defaultData?.locality || '',
   });
-  const [isLocating, setIsLocating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+
+  // Sync with parent's defaultData when it changes (e.g. geotagged from Step 1)
+  useEffect(() => {
+    if (defaultData) {
+      setData(defaultData);
+    }
+  }, [defaultData?.latitude, defaultData?.longitude, defaultData?.address, defaultData?.locality]);
 
   const updateData = (updates: Partial<LocationData>) => {
     const newData = { ...data, ...updates };
@@ -33,83 +36,35 @@ export function LocationPicker({ onChange, defaultData }: LocationPickerProps) {
     onChange(newData);
   };
 
-  const handleDetectLocation = () => {
-    if (!navigator.geolocation) {
-      setError('Geolocation is not supported by your browser');
-      return;
-    }
-
-    setIsLocating(true);
-    setError(null);
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-
-        // Set coordinates immediately
-        const resolvedUpdates: Partial<LocationData> = {
-          latitude: lat,
-          longitude: lng,
-        };
-
-        // Try reverse geocoding
-        try {
-          const geoInfo = await reverseGeocode(lat, lng);
-          if (geoInfo) {
-            resolvedUpdates.address = geoInfo.address;
-            resolvedUpdates.locality = geoInfo.locality;
-          }
-        } catch (err) {
-          console.error('[LocationPicker] Reverse geocode error:', err);
-        }
-
-        updateData(resolvedUpdates);
-        setIsLocating(false);
-      },
-      (err) => {
-        console.error(err);
-        setError('Failed to detect location. Please enter manually.');
-        setIsLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-  };
+  const hasGeotaggedLocation = data.latitude !== null && data.longitude !== null;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="rounded-xl border bg-card p-4 shadow-sm relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-indigo-500" />
-        <div className="flex flex-col items-center justify-center py-4 text-center">
-          <div className="mb-3 rounded-full bg-blue-500/10 p-3 text-blue-600">
-            <Navigation className={`h-6 w-6 ${isLocating ? 'animate-spin' : 'animate-bounce'}`} />
+      {/* Show geotagged confirmation if location was captured from Step 1 */}
+      {hasGeotaggedLocation && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-400 to-green-500" />
+          <div className="flex items-center gap-3">
+            <div className="rounded-full bg-emerald-100 p-2.5 text-emerald-600">
+              <CheckCircle className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-emerald-800">Location Auto-Captured</p>
+              <p className="text-xs text-emerald-700 mt-0.5">
+                <MapPin className="w-3 h-3 inline mr-1" />
+                {data.locality || data.address || `${data.latitude!.toFixed(4)}, ${data.longitude!.toFixed(4)}`}
+              </p>
+            </div>
           </div>
-          <h3 className="font-semibold mb-1">Where is the issue?</h3>
-          <p className="text-sm text-muted-foreground mb-4 max-w-[250px]">
-            GPS accuracy helps authorities locate the problem quickly.
-          </p>
-          <Button 
-            onClick={handleDetectLocation} 
-            disabled={isLocating}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all active:scale-95"
-          >
-            {isLocating ? 'Detecting...' : 'Detect My Location'}
-            {!isLocating && <MapPin className="ml-2 h-4 w-4" />}
-          </Button>
-          
-          {data.latitude && data.longitude && (
-            <p className="mt-3 text-xs font-medium text-emerald-600 flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded-md">
-              <MapPin className="w-3 h-3" /> Location captured ({data.latitude.toFixed(4)}, {data.longitude.toFixed(4)})
-            </p>
-          )}
-          {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
         </div>
-      </div>
+      )}
 
       <div className="space-y-4">
         <div className="flex items-center gap-2 mb-2">
           <Map className="w-4 h-4 text-muted-foreground" />
-          <h4 className="text-sm font-medium">Manual Address Details</h4>
+          <h4 className="text-sm font-medium">
+            {hasGeotaggedLocation ? 'Verify / Edit Address Details' : 'Enter Address Details'}
+          </h4>
         </div>
         
         <div className="space-y-2">
