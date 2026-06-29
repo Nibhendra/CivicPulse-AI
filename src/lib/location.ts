@@ -37,21 +37,15 @@ export async function reverseGeocode(lat: number, lng: number): Promise<GeocodeR
     // Determine a concise locality name (e.g. "Rajendra Nagar" or "Main Road")
     const locality = neighbourhood || road || city || state || 'Detected Area';
 
-    // Format display address neatly
-    // Nominatim's display_name can be very long (e.g. including postal codes, country, etc.)
-    // We'll clean it up to show something readable
-    const displayParts = [
-      addr.house_number || addr.amenity,
-      road,
-      neighbourhood,
-      city,
-      addr.postcode
-    ].filter(Boolean);
-
-    const address = displayParts.length > 0 ? displayParts.join(', ') : data.display_name;
+    // Format display address neatly: use the full display_name to preserve details
+    // like block, district, state, pin code, and country for maximum accuracy.
+    const address = data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    
+    // Clean up address if it contains leading/trailing commas
+    const cleanAddress = address.replace(/^,\s*|,\s*$/g, '').trim();
 
     return {
-      address: address || data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+      address: cleanAddress,
       locality: locality,
     };
   } catch (err) {

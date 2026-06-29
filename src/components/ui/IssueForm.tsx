@@ -245,13 +245,13 @@ export function IssueForm() {
 
             {!isLocatingImage && location.latitude && (
               <div className="flex items-center gap-3 p-3 rounded-xl border border-emerald-200 bg-emerald-50/70">
-                <div className="rounded-full bg-emerald-100 p-2">
+                <div className="rounded-full bg-emerald-100 p-2 shrink-0">
                   <MapPin className="h-4 w-4 text-emerald-600" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-emerald-800">Location Captured</p>
-                  <p className="text-xs text-emerald-700 truncate">
-                    {location.locality || location.address || `${location.latitude.toFixed(4)}, ${location.longitude?.toFixed(4)}`}
+                  <p className="text-xs text-emerald-700 leading-normal break-words mt-0.5">
+                    {location.address || location.locality || `${location.latitude.toFixed(4)}, ${location.longitude?.toFixed(4)}`}
                   </p>
                 </div>
                 <CheckCircle className="h-5 w-5 text-emerald-500 shrink-0" />
