@@ -3,6 +3,7 @@ import { MapPin, Navigation, Map } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { reverseGeocode } from '@/lib/location';
 
 export interface LocationData {
   latitude: number | null;
@@ -42,11 +43,28 @@ export function LocationPicker({ onChange, defaultData }: LocationPickerProps) {
     setError(null);
 
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        updateData({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        });
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+
+        // Set coordinates immediately
+        const resolvedUpdates: Partial<LocationData> = {
+          latitude: lat,
+          longitude: lng,
+        };
+
+        // Try reverse geocoding
+        try {
+          const geoInfo = await reverseGeocode(lat, lng);
+          if (geoInfo) {
+            resolvedUpdates.address = geoInfo.address;
+            resolvedUpdates.locality = geoInfo.locality;
+          }
+        } catch (err) {
+          console.error('[LocationPicker] Reverse geocode error:', err);
+        }
+
+        updateData(resolvedUpdates);
         setIsLocating(false);
       },
       (err) => {

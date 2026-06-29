@@ -11,6 +11,7 @@ import { createIssue } from '@/lib/issues';
 import type { IssueCategory } from '@/types/issue';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { reverseGeocode } from '@/lib/location';
 
 const steps = [
   { id: 1, icon: Camera, label: 'Photo' },
@@ -40,6 +41,7 @@ export function IssueForm() {
   // Image validation states
   const [isValidatingImage, setIsValidatingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [isLocatingImage, setIsLocatingImage] = useState(false);
 
   // Form state
   const [imageUrl, setImageUrl] = useState('');
@@ -59,11 +61,55 @@ export function IssueForm() {
     setImageUrl(url);
     if (!url) {
       setImageError(null);
+      setLocation({
+        latitude: null,
+        longitude: null,
+        address: '',
+        locality: '',
+      });
       return;
     }
 
     setIsValidatingImage(true);
     setImageError(null);
+
+    // Concurrently fetch location at photo capture time
+    if (navigator.geolocation) {
+      setIsLocatingImage(true);
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          
+          setLocation((prev) => ({
+            ...prev,
+            latitude: lat,
+            longitude: lng,
+          }));
+
+          try {
+            const geoInfo = await reverseGeocode(lat, lng);
+            if (geoInfo) {
+              setLocation((prev) => ({
+                ...prev,
+                address: geoInfo.address,
+                locality: geoInfo.locality,
+              }));
+            }
+          } catch (err) {
+            console.error('[Geotag] Reverse geocoding failed:', err);
+          } finally {
+            setIsLocatingImage(false);
+          }
+        },
+        (err) => {
+          console.warn('[Geotag] Geolocation fetch failed at photo capture time:', err);
+          setIsLocatingImage(false);
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+      );
+    }
+
     try {
       const token = user ? await user.getIdToken() : '';
       const response = await fetch('/api/validate-image', {
@@ -185,6 +231,20 @@ export function IssueForm() {
             
             <ImageUploader onChange={handleImageChange} defaultImage={imageUrl} />
             
+            {isLocatingImage && (
+              <div className="flex items-center gap-2 justify-center text-xs text-blue-600 bg-blue-50/50 p-2.5 rounded-xl border border-blue-100/50 animate-pulse">
+                <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                <span>Geotagging photo location...</span>
+              </div>
+            )}
+
+            {!isLocatingImage && location.latitude && (
+              <div className="flex items-center gap-2 justify-center text-xs text-emerald-600 bg-emerald-50/50 p-2.5 rounded-xl border border-emerald-100/50">
+                <MapPin className="h-4 w-4 text-emerald-500 animate-bounce" />
+                <span>Geotagged at: <strong>{location.locality || location.address || 'Detected Area'}</strong></span>
+              </div>
+            )}
+
             {isValidatingImage && (
               <div className="flex items-center gap-2 justify-center text-xs text-indigo-600 bg-indigo-50/50 p-2.5 rounded-xl border border-indigo-100/50 animate-pulse">
                 <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
